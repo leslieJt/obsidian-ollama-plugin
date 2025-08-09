@@ -19,6 +19,12 @@ If your plugin does not need CSS, delete this file.
   flex-direction: column;
 }
 
+/* Ensure text is selectable inside the chat */
+.ollama-chat, .ollama-chat * {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 .ollama-chat-messages {
   flex: 1 1 auto;
   min-height: 0; /* ensure child can shrink to allow scrolling */
@@ -27,6 +33,7 @@ If your plugin does not need CSS, delete this file.
   gap: 10px;
   display: flex;
   flex-direction: column;
+  margin-bottom: 28px;
 }
 
 .ollama-chat-message {
@@ -171,6 +178,8 @@ If your plugin does not need CSS, delete this file.
   padding: 8px 12px;
   border-top: 1px solid var(--background-modifier-border);
   background-color: var(--background-primary);
+  /* Lift the input visually above messages area */
+  z-index: 1;
 }
 
 .ollama-chat-textarea {
