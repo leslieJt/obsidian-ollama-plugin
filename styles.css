@@ -44,6 +44,11 @@ If your plugin does not need CSS, delete this file.
   margin-bottom: 4px;
 }
 
+.ollama-chat-model-tip {
+  font-size: 10px;
+  opacity: 0.6;
+}
+
 .ollama-chat-bubble {
   border-radius: 10px;
   padding: 8px 10px;

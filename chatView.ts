@@ -8,7 +8,7 @@ export type ConversationMessageType = 'request' | 'response';
 
 export class OllamaChatView extends ItemView {
   private plugin: MyPlugin;
-  private messages: Array<{ type: ConversationMessageType; content: string }> = [];
+  private messages: Array<{ type: ConversationMessageType; content: string; model?: string }> = [];
   private messagesEl!: HTMLElement;
   private inputEl!: HTMLTextAreaElement;
   private sendBtnEl!: HTMLButtonElement;
@@ -81,6 +81,10 @@ export class OllamaChatView extends ItemView {
       });
       const label = wrapper.createDiv({ cls: 'ollama-chat-label' });
       label.setText(isRequest ? 'Request' : 'Response');
+      if (!isRequest && msg.model) {
+        const tip = label.createSpan({ cls: 'ollama-chat-model-tip' });
+        tip.setText(` (${msg.model})`);
+      }
       const bubble = wrapper.createDiv({ cls: 'ollama-chat-bubble' });
       const contentEl = bubble.createDiv({ cls: 'ollama-chat-bubble-content' });
       if (isRequest) {
@@ -117,7 +121,7 @@ export class OllamaChatView extends ItemView {
     try {
       const client = getOllamaClient();
       const model = this.plugin.settings.defaultModel || getDefaultModel();
-      const responseMsg = { type: 'response' as ConversationMessageType, content: '' };
+      const responseMsg = { type: 'response' as ConversationMessageType, content: '', model };
       this.messages.push(responseMsg);
       this.renderMessages();
       // capture bubble element for incremental updates
