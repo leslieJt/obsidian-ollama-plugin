@@ -8,16 +8,18 @@ import {
 	PluginSettingTab,
 	Setting,
 } from 'obsidian';
-import getOllamaClient from './ollamaClient';
+import getOllamaClient, { getDefaultModel } from './ollamaClient';
 
 // Remember to rename these classes and interfaces!
 
 interface MyPluginSettings {
 	mySetting: string;
+	defaultModel: string;
 }
 
 const DEFAULT_SETTINGS: MyPluginSettings = {
 	mySetting: 'default',
+	defaultModel: getDefaultModel(),
 };
 
 export default class MyPlugin extends Plugin {
@@ -105,10 +107,25 @@ export default class MyPlugin extends Plugin {
 
 	async loadSettings() {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		if (!this.settings.defaultModel) {
+			this.settings.defaultModel = getDefaultModel();
+		}
 	}
 
 	async saveSettings() {
 		await this.saveData(this.settings);
+	}
+
+	async fetchOllamaModels(): Promise<string[]> {
+		try {
+			const client = getOllamaClient();
+			const list = await client.models.list();
+			return list.data?.map((m: any) => m.id).filter(Boolean) ?? [];
+		} catch (error) {
+			console.warn('Failed to list Ollama models', error);
+			new Notice('Failed to list Ollama models. Is Ollama running?');
+			return [];
+		}
 	}
 }
 
@@ -140,6 +157,70 @@ class SampleSettingTab extends PluginSettingTab {
 		const { containerEl } = this;
 
 		containerEl.empty();
+
+		// Default model dropdown (populated asynchronously)
+		let dropdownRef: any;
+		new Setting(containerEl)
+			.setName('Default Ollama model')
+			.setDesc('Choose the default model to use for completions')
+			.addDropdown((dropdown) => {
+				dropdownRef = dropdown;
+				dropdown.addOption('', 'Loading...');
+				dropdown.setDisabled(true);
+				dropdown.onChange(async (value) => {
+					this.plugin.settings.defaultModel = value;
+					await this.plugin.saveSettings();
+				});
+			});
+
+		void (async () => {
+			const models = await this.plugin.fetchOllamaModels();
+			try {
+				if (dropdownRef?.selectEl) dropdownRef.selectEl.innerHTML = '';
+				if (models.length === 0) {
+					dropdownRef.addOption('', 'No models found');
+					dropdownRef.setDisabled(true);
+					return;
+				}
+				for (const modelId of models) dropdownRef.addOption(modelId, modelId);
+				dropdownRef.setDisabled(false);
+				const selected = models.includes(this.plugin.settings.defaultModel)
+					? this.plugin.settings.defaultModel
+					: models[0];
+				dropdownRef.setValue(selected);
+				if (this.plugin.settings.defaultModel !== selected) {
+					this.plugin.settings.defaultModel = selected;
+					await this.plugin.saveSettings();
+				}
+			} catch (e) {
+				console.warn('Failed to initialize model dropdown', e);
+			}
+		})();
+
+		new Setting(containerEl)
+			.setName('Refresh models')
+			.setDesc('Reload the installed Ollama models list')
+			.addButton((btn) =>
+				btn.setButtonText('Refresh').onClick(async () => {
+					btn.setDisabled(true);
+					const models = await this.plugin.fetchOllamaModels();
+					if (dropdownRef?.selectEl) dropdownRef.selectEl.innerHTML = '';
+					if (models.length === 0) {
+						dropdownRef.addOption('', 'No models found');
+						dropdownRef.setDisabled(true);
+					} else {
+						for (const modelId of models) dropdownRef.addOption(modelId, modelId);
+						dropdownRef.setDisabled(false);
+						const selected = models.includes(this.plugin.settings.defaultModel)
+							? this.plugin.settings.defaultModel
+							: models[0];
+						dropdownRef.setValue(selected);
+						this.plugin.settings.defaultModel = selected;
+						await this.plugin.saveSettings();
+					}
+					btn.setDisabled(false);
+				}),
+			);
 
 		new Setting(containerEl)
 			.setName('Setting #1')
