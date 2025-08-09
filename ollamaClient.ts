@@ -17,6 +17,7 @@ export function getOllamaClient(options?: OllamaClientOptions): OpenAI {
 	cachedClient = new OpenAI({
 		baseURL: options?.baseURL ?? OLLAMA_BASE_URL,
 		apiKey: options?.apiKey ?? OLLAMA_API_KEY,
+		dangerouslyAllowBrowser: true,
 	});
 
 	return cachedClient;
