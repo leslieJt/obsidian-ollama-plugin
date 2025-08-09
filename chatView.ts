@@ -1,4 +1,5 @@
 import { App, ItemView, Notice, WorkspaceLeaf, MarkdownRenderer } from 'obsidian';
+import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 import getOllamaClient, { getDefaultModel } from './ollamaClient';
 import type MyPlugin from './main';
 
@@ -76,6 +77,16 @@ export class OllamaChatView extends ItemView {
     });
     this.sendBtnEl.addEventListener('click', () => this.sendMessage());
 
+    // Load persisted messages from settings
+    try {
+      const persisted = this.plugin.getChatHistory?.() ?? [];
+      if (Array.isArray(persisted) && persisted.length > 0) {
+        this.messages = persisted.map((m) => ({ ...m }));
+      }
+    } catch (_e) {
+      // no-op
+    }
+
     this.renderMessages();
   }
 
@@ -128,6 +139,12 @@ export class OllamaChatView extends ItemView {
     if (!text || this.isSending) return;
 
     this.messages.push({ type: 'request', content: text });
+    // persist after adding user message
+    try {
+      await this.plugin.setChatHistory?.(this.messages);
+    } catch (_e) {
+      // no-op
+    }
     // Log request to console with the model that will be used
     try {
       const model = this.plugin.settings.defaultModel || getDefaultModel();
@@ -159,13 +176,26 @@ export class OllamaChatView extends ItemView {
         '.ollama-chat-bubble-content',
       ) as HTMLElement | null;
 
+      const fullHistory: ChatCompletionMessageParam[] = this.messages
+        // exclude the last assistant placeholder while content is empty
+        .filter((m, idx, arr) => !(m.type === 'response' && m.content === '' && idx === arr.length - 1))
+        .map((m) =>
+          m.type === 'request'
+            ? ({ role: 'user' as const, content: m.content })
+            : ({ role: 'assistant' as const, content: m.content }),
+        );
+
+      // Log the exact history being sent to the model
+      try {
+        console.log('[Ollama Chat] → History (to model)', { model, messages: fullHistory });
+      } catch (_e) {
+        // no-op
+      }
+
       const stream = (await client.chat.completions.create({
         model,
         stream: true,
-        messages: this.messages.map((m) => ({
-          role: m.type === 'request' ? 'user' : 'assistant',
-          content: m.content,
-        })),
+        messages: fullHistory,
       })) as any;
 
       for await (const part of stream) {
@@ -190,6 +220,13 @@ export class OllamaChatView extends ItemView {
       if (this.activeResponseContentEl) {
         this.renderMarkdownTo(this.activeResponseContentEl, responseMsg.content, true);
         this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
+      }
+
+      // persist after completing assistant response
+      try {
+        await this.plugin.setChatHistory?.(this.messages);
+      } catch (_e) {
+        // no-op
       }
     } catch (error) {
       console.warn('Ollama chat error', error);

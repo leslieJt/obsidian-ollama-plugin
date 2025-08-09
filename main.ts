@@ -3,11 +3,13 @@ import getOllamaClient, { getDefaultModel } from './ollamaClient';
 import { registerChatView } from './chatView';
 
 interface MyPluginSettings {
-	defaultModel: string;
+    defaultModel: string;
+    chatHistory?: Array<{ type: 'request' | 'response'; content: string; model?: string }>;
 }
 
 const DEFAULT_SETTINGS: MyPluginSettings = {
-	defaultModel: getDefaultModel(),
+    defaultModel: getDefaultModel(),
+    chatHistory: [],
 };
 
 
@@ -47,6 +49,17 @@ export default class MyPlugin extends Plugin {
 
 	async saveSettings() {
 		await this.saveData(this.settings);
+	}
+
+	getChatHistory(): Array<{ type: 'request' | 'response'; content: string; model?: string }> {
+		return this.settings.chatHistory ?? [];
+	}
+
+	async setChatHistory(
+		messages: Array<{ type: 'request' | 'response'; content: string; model?: string }>,
+	): Promise<void> {
+		this.settings.chatHistory = messages;
+		await this.saveSettings();
 	}
 
 	async fetchOllamaModels(): Promise<string[]> {
