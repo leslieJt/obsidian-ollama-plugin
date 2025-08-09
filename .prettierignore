@@ -1,0 +1,9 @@
+node_modules
+main.js
+*.log
+dist
+build
+.yarn
+.cache
+
+
