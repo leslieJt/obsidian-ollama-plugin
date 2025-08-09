@@ -1,11 +1,11 @@
 {
 	"id": "obsidian-ollama-plugin",
 	"name": "Ollama Plugin",
-	"version": "1.0.1",
-	"minAppVersion": "0.15.0",
-	"description": "This is a plugin for Obsidian (https://obsidian.md) that allows you to use Ollama models in your notes.",
-	"author": "Ollama",
-	"authorUrl": "https://ollama.ai",
-	"fundingUrl": "https://ollama.ai/pricing",
+	"version": "1.0.2",
+	"minAppVersion": "0.16.0",
+	"description": "Ollama plugin for Obsidian.",
+	"author": "jt",
+	"authorUrl": "https://github.com/lzen",
+	"fundingUrl": "https://github.com/sponsors/lzen",
 	"isDesktopOnly": false
 }

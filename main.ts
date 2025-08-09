@@ -31,7 +31,8 @@ export default class MyPlugin extends Plugin {
 		// Example warm-up to ensure connectivity (non-blocking)
 		void (async () => {
 			try {
-				await ollama.models.list();
+				const models = await ollama.models.list();
+				console.log('Ollama models:', models);
 				console.info('Ollama connection initialized');
 			} catch (err) {
 				console.warn('Ollama not reachable at init:', err);
