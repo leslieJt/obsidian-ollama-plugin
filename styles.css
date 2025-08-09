@@ -6,3 +6,56 @@ available in the app when your plugin is enabled.
 If your plugin does not need CSS, delete this file.
 
 */
+
+.ollama-chat {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.ollama-chat-messages {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 12px;
+  gap: 8px;
+  display: flex;
+  flex-direction: column;
+}
+
+.ollama-chat-message {
+  max-width: 80%;
+  border-radius: 8px;
+  padding: 8px 10px;
+  white-space: pre-wrap;
+}
+
+.ollama-chat-message.user {
+  align-self: flex-end;
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.ollama-chat-message.assistant {
+  align-self: flex-start;
+  background-color: var(--background-modifier-hover);
+}
+
+.ollama-chat-input {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  padding: 8px 12px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.ollama-chat-textarea {
+  flex: 1 1 auto;
+  resize: none;
+  max-height: 200px;
+}
+
+.ollama-chat-send.is-loading {
+  opacity: 0.7;
+  pointer-events: none;
+}

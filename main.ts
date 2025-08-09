@@ -1,14 +1,6 @@
-import {
-	App,
-	Editor,
-	MarkdownView,
-	Modal,
-	Notice,
-	Plugin,
-	PluginSettingTab,
-	Setting,
-} from 'obsidian';
+import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
 import getOllamaClient, { getDefaultModel } from './ollamaClient';
+import { registerChatView } from './chatView';
 
 // Remember to rename these classes and interfaces!
 
@@ -21,6 +13,7 @@ const DEFAULT_SETTINGS: MyPluginSettings = {
 	mySetting: 'default',
 	defaultModel: getDefaultModel(),
 };
+
 
 export default class MyPlugin extends Plugin {
 	settings: MyPluginSettings;
@@ -52,6 +45,9 @@ export default class MyPlugin extends Plugin {
 		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
 		const statusBarItemEl = this.addStatusBarItem();
 		statusBarItemEl.setText('Status Bar Text');
+
+        // Register chat view, ribbon and command
+        registerChatView(this);
 
 		// This adds a simple command that can be triggered anywhere
 		this.addCommand({
@@ -127,6 +123,8 @@ export default class MyPlugin extends Plugin {
 			return [];
 		}
 	}
+
+    // chat view activation now handled in chatView.ts
 }
 
 class SampleModal extends Modal {
