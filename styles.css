@@ -7,46 +7,81 @@ If your plugin does not need CSS, delete this file.
 
 */
 
+.ollama-chat-container {
+  position: relative;
+  height: 100%;
+}
+
 .ollama-chat {
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
-  height: 100%;
 }
 
 .ollama-chat-messages {
   flex: 1 1 auto;
+  min-height: 0; /* ensure child can shrink to allow scrolling */
   overflow: auto;
   padding: 12px;
-  gap: 8px;
+  gap: 10px;
   display: flex;
   flex-direction: column;
 }
 
 .ollama-chat-message {
+  display: flex;
+  flex-direction: column;
   max-width: 80%;
-  border-radius: 8px;
-  padding: 8px 10px;
-  white-space: pre-wrap;
 }
 
-.ollama-chat-message.user {
-  align-self: flex-end;
+.ollama-chat-message.request { align-self: flex-end; }
+.ollama-chat-message.response { align-self: flex-start; }
+
+.ollama-chat-label {
+  font-size: 10px;
+  opacity: 0.7;
+  margin-bottom: 4px;
+}
+
+.ollama-chat-bubble {
+  border-radius: 10px;
+  padding: 8px 10px;
+  white-space: pre-wrap;
+  background-color: var(--background-modifier-hover);
+}
+
+.ollama-chat-bubble-content {
+  /* markdown content container */
+  padding: 2px 6px;
+}
+
+/* tighten default markdown spacing inside bubbles */
+.ollama-chat-bubble-content p,
+.ollama-chat-bubble-content ul,
+.ollama-chat-bubble-content ol,
+.ollama-chat-bubble-content pre,
+.ollama-chat-bubble-content blockquote {
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+.ollama-chat-bubble-content > :first-child { margin-top: 0; }
+.ollama-chat-bubble-content > :last-child { margin-bottom: 0; }
+
+.ollama-chat-message.request .ollama-chat-bubble {
   background-color: var(--interactive-accent);
   color: var(--text-on-accent);
 }
 
-.ollama-chat-message.assistant {
-  align-self: flex-start;
-  background-color: var(--background-modifier-hover);
-}
-
 .ollama-chat-input {
-  flex: 0 0 auto;
+  position: sticky;
+  bottom: 0;
   display: flex;
   gap: 8px;
   align-items: flex-end;
   padding: 8px 12px;
   border-top: 1px solid var(--background-modifier-border);
+  background-color: var(--background-primary);
 }
 
 .ollama-chat-textarea {

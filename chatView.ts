@@ -1,16 +1,21 @@
-import { App, ItemView, Notice, WorkspaceLeaf } from 'obsidian';
+import { App, ItemView, Notice, WorkspaceLeaf, MarkdownRenderer } from 'obsidian';
 import getOllamaClient, { getDefaultModel } from './ollamaClient';
 import type MyPlugin from './main';
 
 export const VIEW_TYPE_OLLAMA_CHAT = 'ollama-chat-view';
 
+export type ConversationMessageType = 'request' | 'response';
+
 export class OllamaChatView extends ItemView {
   private plugin: MyPlugin;
-  private messages: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+  private messages: Array<{ type: ConversationMessageType; content: string }> = [];
   private messagesEl!: HTMLElement;
   private inputEl!: HTMLTextAreaElement;
   private sendBtnEl!: HTMLButtonElement;
   private isSending = false;
+  private activeResponseBubble: HTMLElement | null = null;
+  private activeResponseContentEl: HTMLElement | null = null;
+  private lastStreamRenderMs = 0;
 
   constructor(leaf: WorkspaceLeaf, plugin: MyPlugin) {
     super(leaf);
@@ -32,8 +37,9 @@ export class OllamaChatView extends ItemView {
   async onOpen(): Promise<void> {
     const container = this.containerEl.children[1];
     container.empty();
+    (container as HTMLElement).addClass('ollama-chat-container');
 
-    const root = container.createDiv({ cls: 'ollama-chat' });
+    const root = (container as HTMLElement).createDiv({ cls: 'ollama-chat' });
     this.messagesEl = root.createDiv({ cls: 'ollama-chat-messages' });
 
     const inputWrapper = root.createDiv({ cls: 'ollama-chat-input' });
@@ -69,10 +75,20 @@ export class OllamaChatView extends ItemView {
   private renderMessages(): void {
     this.messagesEl.empty();
     for (const msg of this.messages) {
-      const bubble = this.messagesEl.createDiv({
-        cls: `ollama-chat-message ${msg.role}`,
+      const isRequest = msg.type === 'request';
+      const wrapper = this.messagesEl.createDiv({
+        cls: `ollama-chat-message ${isRequest ? 'request' : 'response'}`,
       });
-      bubble.setText(msg.content);
+      const label = wrapper.createDiv({ cls: 'ollama-chat-label' });
+      label.setText(isRequest ? 'Request' : 'Response');
+      const bubble = wrapper.createDiv({ cls: 'ollama-chat-bubble' });
+      const contentEl = bubble.createDiv({ cls: 'ollama-chat-bubble-content' });
+      if (isRequest) {
+        contentEl.setText(msg.content);
+      } else {
+        // Render response as markdown
+        this.renderMarkdownTo(contentEl, msg.content);
+      }
     }
     this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
   }
@@ -88,7 +104,7 @@ export class OllamaChatView extends ItemView {
     const text = this.inputEl.value.trim();
     if (!text || this.isSending) return;
 
-    this.messages.push({ role: 'user', content: text });
+    this.messages.push({ type: 'request', content: text });
     this.inputEl.value = '';
     this.autoResizeTextarea();
     this.renderMessages();
@@ -101,19 +117,67 @@ export class OllamaChatView extends ItemView {
     try {
       const client = getOllamaClient();
       const model = this.plugin.settings.defaultModel || getDefaultModel();
-      const completion = await client.chat.completions.create({
-        model,
-        messages: this.messages.map((m) => ({ role: m.role, content: m.content })),
-      });
-      const content = completion.choices?.[0]?.message?.content || '';
-      this.messages.push({ role: 'assistant', content: content });
+      const responseMsg = { type: 'response' as ConversationMessageType, content: '' };
+      this.messages.push(responseMsg);
       this.renderMessages();
+      // capture bubble element for incremental updates
+      const lastMsgEl = this.messagesEl.lastElementChild as HTMLElement | null;
+      this.activeResponseBubble = lastMsgEl?.querySelector('.ollama-chat-bubble') as
+        | HTMLElement
+        | null;
+      this.activeResponseContentEl = lastMsgEl?.querySelector(
+        '.ollama-chat-bubble-content',
+      ) as HTMLElement | null;
+
+      const stream = (await client.chat.completions.create({
+        model,
+        stream: true,
+        messages: this.messages.map((m) => ({
+          role: m.type === 'request' ? 'user' : 'assistant',
+          content: m.content,
+        })),
+      })) as any;
+
+      for await (const part of stream) {
+        const delta = part?.choices?.[0]?.delta?.content ?? part?.choices?.[0]?.message?.content ?? '';
+        if (!delta) continue;
+        responseMsg.content += delta;
+        // Throttle markdown re-render to ~20fps
+        const now = performance.now();
+        if (now - this.lastStreamRenderMs > 50) {
+          if (this.activeResponseContentEl) {
+            this.renderMarkdownTo(this.activeResponseContentEl, responseMsg.content, true);
+            this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
+          } else {
+            this.renderMessages();
+          }
+          this.lastStreamRenderMs = now;
+        }
+      }
+      // Final render to ensure completion
+      if (this.activeResponseContentEl) {
+        this.renderMarkdownTo(this.activeResponseContentEl, responseMsg.content, true);
+        this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
+      }
     } catch (error) {
       console.warn('Ollama chat error', error);
       new Notice('Chat failed. Check Ollama and model settings.');
     } finally {
+      this.activeResponseBubble = null;
+      this.activeResponseContentEl = null;
       this.setSendingState(false);
     }
+  }
+
+  private async renderMarkdownTo(targetEl: HTMLElement, markdown: string, replace = false): Promise<void> {
+    if (replace) targetEl.empty();
+    await MarkdownRenderer.render(
+      this.app,
+      markdown,
+      targetEl,
+      this.app.workspace.getActiveFile()?.path ?? '',
+      this,
+    );
   }
 }
 

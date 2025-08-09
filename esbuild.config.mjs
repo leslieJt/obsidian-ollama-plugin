@@ -26,11 +26,12 @@ const copyToObsidianPlugin = {
                 const filesToCopy = [
                     { src: 'main.js', dest: path.join(OBSIDIAN_PLUGIN_DIR, 'main.js') },
                     { src: 'manifest.json', dest: path.join(OBSIDIAN_PLUGIN_DIR, 'manifest.json') },
+                    { src: 'styles.css', dest: path.join(OBSIDIAN_PLUGIN_DIR, 'styles.css') },
                 ];
                 await Promise.all(
                     filesToCopy.map(({ src, dest }) => fs.copyFile(src, dest))
                 );
-                console.log(`Copied main.js and manifest.json to ${OBSIDIAN_PLUGIN_DIR}`);
+                console.log(`Copied main.js, manifest.json and styles.css to ${OBSIDIAN_PLUGIN_DIR}`);
             } catch (error) {
                 console.error('Failed to copy build artifacts to Obsidian plugin directory:', error);
             }
