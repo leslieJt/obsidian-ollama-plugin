@@ -33,7 +33,107 @@ If your plugin does not need CSS, delete this file.
   gap: 10px;
   display: flex;
   flex-direction: column;
-  margin-bottom: 28px;
+  margin-bottom: 50px;
+}
+
+/* Suggestions Panel */
+.ollama-chat-suggestions {
+  padding: 12px;
+  margin-top: 6px;
+  border-top: 1px dashed var(--background-modifier-border);
+}
+
+.ollama-chat-suggestions-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.ollama-chat-suggestions-title {
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.ollama-chat-suggestions-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.ollama-chat-suggestions-refresh,
+.ollama-chat-suggestions-retry {
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-normal);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ollama-chat-suggestions-refresh:hover,
+.ollama-chat-suggestions-retry:hover {
+  background: var(--background-modifier-hover);
+}
+
+.ollama-chat-suggestions-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.ollama-chat-suggestions-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ollama-chat-suggestion-card {
+  cursor: pointer;
+  position: relative;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--background-primary);
+  transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
+}
+
+.ollama-chat-suggestion-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+  background: var(--background-secondary);
+}
+
+.ollama-chat-suggestion-text {
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+/* Ask button removed; card click now sends directly */
+
+.ollama-chat-suggestions-error {
+  color: var(--text-error);
+  margin-bottom: 8px;
+}
+
+/* Loading shimmer */
+.ollama-chat-suggestion-card.loading { overflow: hidden; }
+.shimmer-line {
+  height: 10px;
+  border-radius: 6px;
+  background: linear-gradient(90deg,
+    var(--background-modifier-border) 0%,
+    var(--background-modifier-hover) 30%,
+    var(--background-modifier-border) 60%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s infinite;
+  margin: 6px 0;
+}
+.shimmer-line.line-1 { width: 90%; }
+.shimmer-line.line-2 { width: 70%; }
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 .ollama-chat-message {

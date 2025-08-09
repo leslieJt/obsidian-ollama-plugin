@@ -2,6 +2,7 @@ import { App, ItemView, Notice, WorkspaceLeaf, MarkdownRenderer } from 'obsidian
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 import getOllamaClient, { getDefaultModel } from './ollamaClient';
 import type MyPlugin from './main';
+import RecommendationsPanel from './recommendations';
 
 export const VIEW_TYPE_OLLAMA_CHAT = 'ollama-chat-view';
 
@@ -11,6 +12,7 @@ export class OllamaChatView extends ItemView {
   private plugin: MyPlugin;
   private messages: Array<{ type: ConversationMessageType; content: string; model?: string }> = [];
   private messagesEl!: HTMLElement;
+  private suggestionsEl!: HTMLElement;
   private inputEl!: HTMLTextAreaElement;
   private sendBtnEl!: HTMLButtonElement;
   private resetBtnEl!: HTMLButtonElement;
@@ -20,6 +22,7 @@ export class OllamaChatView extends ItemView {
   private lastStreamRenderMs = 0;
   private static readonly MIN_TEXTAREA_HEIGHT_PX = 36;
   private currentAbortController: AbortController | null = null;
+  private recommendationsPanel: RecommendationsPanel | null = null;
 
   constructor(leaf: WorkspaceLeaf, plugin: MyPlugin) {
     super(leaf);
@@ -44,7 +47,10 @@ export class OllamaChatView extends ItemView {
     (container as HTMLElement).addClass('ollama-chat-container');
 
     const root = (container as HTMLElement).createDiv({ cls: 'ollama-chat' });
+    // Messages list (scrollable)
     this.messagesEl = root.createDiv({ cls: 'ollama-chat-messages' });
+    // Suggestions panel lives at the bottom of the messages list so it scrolls with history
+    this.suggestionsEl = this.messagesEl.createDiv({ cls: 'ollama-chat-suggestions' });
 
     const inputWrapper = root.createDiv({ cls: 'ollama-chat-input' });
     this.inputEl = inputWrapper.createEl('textarea', {
@@ -96,9 +102,28 @@ export class OllamaChatView extends ItemView {
     }
 
     this.renderMessages();
+
+    // Initialize recommendations panel
+    this.recommendationsPanel = new RecommendationsPanel(this.app, this.plugin);
+    this.recommendationsPanel.mount(this.suggestionsEl, {
+      prefill: (q: string) => {
+        this.inputEl.value = q;
+        this.autoResizeTextarea();
+        this.inputEl.focus();
+      },
+      ask: (q: string) => {
+        this.inputEl.value = q;
+        this.autoResizeTextarea();
+        void this.sendMessage();
+      },
+    });
+    void this.recommendationsPanel.refresh();
   }
 
-  async onClose(): Promise<void> {}
+  async onClose(): Promise<void> {
+    try { this.recommendationsPanel?.destroy(); } catch { /* no-op */ }
+    this.recommendationsPanel = null;
+  }
 
   private autoResizeTextarea(): void {
     const el = this.inputEl;
@@ -111,6 +136,8 @@ export class OllamaChatView extends ItemView {
   }
 
   private renderMessages(): void {
+    // Preserve suggestions element, re-append after rendering messages
+    const suggestionsNode = this.suggestionsEl;
     this.messagesEl.empty();
     for (const msg of this.messages) {
       const isRequest = msg.type === 'request';
@@ -135,8 +162,12 @@ export class OllamaChatView extends ItemView {
         this.attachResponseActions(bubble, contentEl, msg);
       }
     }
+    // Append suggestions panel at the very end so it sits at the bottom of the chat
+    if (suggestionsNode) this.messagesEl.appendChild(suggestionsNode);
     this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
   }
+
+  // Suggestions UI moved into RecommendationsPanel
 
   private setSendingState(sending: boolean): void {
     this.isSending = sending;
@@ -144,6 +175,8 @@ export class OllamaChatView extends ItemView {
     this.sendBtnEl.disabled = sending;
     this.inputEl.disabled = sending;
   }
+
+  // Fetching/parsing moved to RecommendationsPanel
 
   private async sendMessage(): Promise<void> {
     const text = this.inputEl.value.trim();
