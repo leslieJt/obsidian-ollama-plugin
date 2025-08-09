@@ -13,11 +13,13 @@ export class OllamaChatView extends ItemView {
   private messagesEl!: HTMLElement;
   private inputEl!: HTMLTextAreaElement;
   private sendBtnEl!: HTMLButtonElement;
+  private resetBtnEl!: HTMLButtonElement;
   private isSending = false;
   private activeResponseBubble: HTMLElement | null = null;
   private activeResponseContentEl: HTMLElement | null = null;
   private lastStreamRenderMs = 0;
   private static readonly MIN_TEXTAREA_HEIGHT_PX = 36;
+  private currentAbortController: AbortController | null = null;
 
   constructor(leaf: WorkspaceLeaf, plugin: MyPlugin) {
     super(leaf);
@@ -76,6 +78,12 @@ export class OllamaChatView extends ItemView {
       text: 'Send',
     });
     this.sendBtnEl.addEventListener('click', () => this.sendMessage());
+
+    this.resetBtnEl = inputWrapper.createEl('button', {
+      cls: 'ollama-chat-reset',
+      text: 'Reset',
+    });
+    this.resetBtnEl.addEventListener('click', () => this.resetConversation());
 
     // Load persisted messages from settings
     try {
@@ -192,11 +200,12 @@ export class OllamaChatView extends ItemView {
         // no-op
       }
 
+      this.currentAbortController = new AbortController();
       const stream = (await client.chat.completions.create({
         model,
         stream: true,
         messages: fullHistory,
-      })) as any;
+      }, { signal: this.currentAbortController.signal })) as any;
 
       for await (const part of stream) {
         const delta = part?.choices?.[0]?.delta?.content ?? part?.choices?.[0]?.message?.content ?? '';
@@ -230,11 +239,17 @@ export class OllamaChatView extends ItemView {
       }
     } catch (error) {
       console.warn('Ollama chat error', error);
-      new Notice('Chat failed. Check Ollama and model settings.');
+      const message = (error as any)?.message ?? '';
+      const name = (error as any)?.name ?? '';
+      const wasAborted = name === 'AbortError' || /abort/i.test(message);
+      if (!wasAborted) {
+        new Notice('Chat failed. Check Ollama and model settings.');
+      }
     } finally {
       this.activeResponseBubble = null;
       this.activeResponseContentEl = null;
       this.setSendingState(false);
+      this.currentAbortController = null;
     }
   }
 
@@ -247,6 +262,25 @@ export class OllamaChatView extends ItemView {
       this.app.workspace.getActiveFile()?.path ?? '',
       this,
     );
+  }
+
+  private async resetConversation(): Promise<void> {
+    // Abort any in-flight request
+    try {
+      this.currentAbortController?.abort();
+    } catch (_e) {
+      // no-op
+    }
+    this.activeResponseBubble = null;
+    this.activeResponseContentEl = null;
+    this.setSendingState(false);
+    this.messages = [];
+    this.renderMessages();
+    try {
+      await this.plugin.setChatHistory?.([]);
+    } catch (_e) {
+      // no-op
+    }
   }
 }
 
