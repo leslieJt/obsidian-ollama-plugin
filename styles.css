@@ -139,7 +139,7 @@ If your plugin does not need CSS, delete this file.
 .ollama-chat-message {
   display: flex;
   flex-direction: column;
-  max-width: 80%;
+  max-width: 95%;
 }
 
 .ollama-chat-message.request { align-self: flex-end; }

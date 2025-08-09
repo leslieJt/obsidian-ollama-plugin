@@ -23,6 +23,7 @@ export class OllamaChatView extends ItemView {
   private static readonly MIN_TEXTAREA_HEIGHT_PX = 36;
   private currentAbortController: AbortController | null = null;
   private recommendationsPanel: RecommendationsPanel | null = null;
+  private suggestionAnchorIndex: number = 0;
 
   constructor(leaf: WorkspaceLeaf, plugin: MyPlugin) {
     super(leaf);
@@ -101,6 +102,9 @@ export class OllamaChatView extends ItemView {
       // no-op
     }
 
+    // Anchor suggestions after any existing history
+    this.suggestionAnchorIndex = this.messages.length;
+
     this.renderMessages();
 
     // Initialize recommendations panel
@@ -136,34 +140,44 @@ export class OllamaChatView extends ItemView {
   }
 
   private renderMessages(): void {
-    // Preserve suggestions element, re-append after rendering messages
     const suggestionsNode = this.suggestionsEl;
     this.messagesEl.empty();
-    for (const msg of this.messages) {
-      const isRequest = msg.type === 'request';
-      const wrapper = this.messagesEl.createDiv({
-        cls: `ollama-chat-message ${isRequest ? 'request' : 'response'}`,
-      });
-      const label = wrapper.createDiv({ cls: 'ollama-chat-label' });
-      label.setText(isRequest ? 'Request' : 'Response');
-      if (!isRequest && msg.model) {
-        const tip = label.createSpan({ cls: 'ollama-chat-model-tip' });
-        tip.setText(` (${msg.model})`);
-      }
-      const bubble = wrapper.createDiv({ cls: 'ollama-chat-bubble' });
-      const contentEl = bubble.createDiv({ cls: 'ollama-chat-bubble-content' });
-      if (isRequest) {
-        contentEl.setText(msg.content);
-      } else {
-        // Render response as markdown
-        this.renderMarkdownTo(contentEl, msg.content).then(() => {
-          this.enhanceRenderedContent(contentEl);
+
+    const anchor = Math.min(Math.max(this.suggestionAnchorIndex, 0), this.messages.length);
+    const before = this.messages.slice(0, anchor);
+    const after = this.messages.slice(anchor);
+
+    const renderList = (list: Array<{ type: ConversationMessageType; content: string; model?: string }>) => {
+      for (const msg of list) {
+        const isRequest = msg.type === 'request';
+        const wrapper = this.messagesEl.createDiv({
+          cls: `ollama-chat-message ${isRequest ? 'request' : 'response'}`,
         });
-        this.attachResponseActions(bubble, contentEl, msg);
+        const label = wrapper.createDiv({ cls: 'ollama-chat-label' });
+        label.setText(isRequest ? 'Request' : 'Response');
+        if (!isRequest && msg.model) {
+          const tip = label.createSpan({ cls: 'ollama-chat-model-tip' });
+          tip.setText(` (${msg.model})`);
+        }
+        const bubble = wrapper.createDiv({ cls: 'ollama-chat-bubble' });
+        const contentEl = bubble.createDiv({ cls: 'ollama-chat-bubble-content' });
+        if (isRequest) {
+          contentEl.setText(msg.content);
+        } else {
+          this.renderMarkdownTo(contentEl, msg.content).then(() => {
+            this.enhanceRenderedContent(contentEl);
+          });
+          this.attachResponseActions(bubble, contentEl, msg);
+        }
       }
-    }
-    // Append suggestions panel at the very end so it sits at the bottom of the chat
+    };
+
+    // Render history before suggestions
+    renderList(before);
+    // Insert suggestions node
     if (suggestionsNode) this.messagesEl.appendChild(suggestionsNode);
+    // Render new messages after suggestions
+    renderList(after);
     this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
   }
 
@@ -422,6 +436,7 @@ export class OllamaChatView extends ItemView {
     this.activeResponseContentEl = null;
     this.setSendingState(false);
     this.messages = [];
+    this.suggestionAnchorIndex = 0;
     this.renderMessages();
     try {
       await this.plugin.setChatHistory?.([]);
