@@ -52,10 +52,15 @@ If your plugin does not need CSS, delete this file.
 .ollama-chat-bubble {
   border-radius: 10px;
   padding: 8px 10px;
-  white-space: pre-wrap;
   background-color: var(--background-modifier-hover);
   position: relative;
 }
+
+/* Preserve newlines only for plain-text request bubbles. Markdown responses
+   should use normal white-space so lists, blockquotes, and headings layout
+   correctly. */
+.ollama-chat-message.request .ollama-chat-bubble { white-space: pre-wrap; }
+.ollama-chat-message.response .ollama-chat-bubble { white-space: normal; }
 
 .ollama-chat-bubble-content {
   /* markdown content container */
@@ -147,6 +152,14 @@ If your plugin does not need CSS, delete this file.
 .ollama-chat-message.request .ollama-chat-bubble {
   background-color: var(--interactive-accent);
   color: var(--text-on-accent);
+}
+
+/* Ensure lists and blockquotes have sensible indentation inside bubbles */
+.ollama-chat-bubble-content ul,
+.ollama-chat-bubble-content ol { padding-left: 1.5em; }
+.ollama-chat-bubble-content blockquote {
+  padding-left: 0.9em;
+  border-left: 3px solid var(--background-modifier-border);
 }
 
 .ollama-chat-input {
