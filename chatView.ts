@@ -193,9 +193,44 @@ export class OllamaChatView extends ItemView {
             : ({ role: 'assistant' as const, content: m.content }),
         );
 
+      // Construct messages to send with a fixed system prompt and the active file content as the first user message
+      let messagesToSend: ChatCompletionMessageParam[] = [];
+      const systemPrompt: ChatCompletionMessageParam = {
+        role: 'system',
+        content:
+          'You are an expert article analyst. Given an article, you analyze its structure, key arguments, evidence, tone, and audience; identify gaps, contradictions, and assumptions; propose fresh perspectives and reframings; suggest improvements; and produce helpful artifacts (outline, abstract, title options, tags, key takeaways, questions, and next steps). Prefer concise, well-structured responses.',
+      };
+      messagesToSend.push(systemPrompt);
+
+      try {
+        const activeFile = this.app.workspace.getActiveFile();
+        if (activeFile) {
+          const fileContents = await this.app.vault.read(activeFile);
+          const wrapped = [
+            '<current_file>',
+            `<name>${activeFile.path}</name>`,
+            '<content>',
+            '```markdown',
+            fileContents,
+            '```',
+            '</content>',
+            '</current_file>',
+          ].join('\n');
+          const fileAsUser: ChatCompletionMessageParam = {
+            role: 'user',
+            content: wrapped,
+          };
+          messagesToSend.push(fileAsUser);
+        }
+      } catch (_e) {
+        // no-op: if reading fails, proceed without file context
+      }
+
+      messagesToSend = [...messagesToSend, ...fullHistory];
+
       // Log the exact history being sent to the model
       try {
-        console.log('[Ollama Chat] → History (to model)', { model, messages: fullHistory });
+        console.log('[Ollama Chat] → History (to model)', { model, messages: messagesToSend });
       } catch (_e) {
         // no-op
       }
@@ -204,7 +239,7 @@ export class OllamaChatView extends ItemView {
       const stream = (await client.chat.completions.create({
         model,
         stream: true,
-        messages: fullHistory,
+        messages: messagesToSend,
       }, { signal: this.currentAbortController.signal })) as any;
 
       for await (const part of stream) {
