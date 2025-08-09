@@ -92,7 +92,10 @@ If your plugin does not need CSS, delete this file.
 .ollama-chat-textarea {
   flex: 1 1 auto;
   resize: none;
-  max-height: 200px;
+  max-height: 240px;
+  line-height: 1.4;
+  overflow: hidden; /* we'll auto-resize */
+  min-height: 36px; /* ensure visible height on init */
 }
 
 .ollama-chat-send.is-loading {

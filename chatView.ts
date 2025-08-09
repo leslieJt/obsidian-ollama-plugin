@@ -16,6 +16,7 @@ export class OllamaChatView extends ItemView {
   private activeResponseBubble: HTMLElement | null = null;
   private activeResponseContentEl: HTMLElement | null = null;
   private lastStreamRenderMs = 0;
+  private static readonly MIN_TEXTAREA_HEIGHT_PX = 36;
 
   constructor(leaf: WorkspaceLeaf, plugin: MyPlugin) {
     super(leaf);
@@ -45,16 +46,29 @@ export class OllamaChatView extends ItemView {
     const inputWrapper = root.createDiv({ cls: 'ollama-chat-input' });
     this.inputEl = inputWrapper.createEl('textarea', {
       cls: 'ollama-chat-textarea',
-      placeholder: 'Type a message... (Enter to send, Shift+Enter for newline)',
+      placeholder: 'Type a message... (Enter to send, Cmd+Enter for newline)',
     });
     this.inputEl.rows = 1;
     this.inputEl.addEventListener('input', () => this.autoResizeTextarea());
-    this.inputEl.addEventListener('keydown', (e: KeyboardEvent) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
+    this.inputEl.addEventListener(
+      'keydown',
+      (e: KeyboardEvent) => {
+        if (e.isComposing) return; // ignore IME composition
+        const isEnter = e.key === 'Enter' || (e as any).code === 'Enter' || (e as any).keyCode === 13;
+        if (!isEnter) return;
+        if (e.metaKey) {
+          // Cmd+Enter → allow newline (default behavior)
+          return;
+        }
+        // Enter → send
         e.preventDefault();
+        e.stopPropagation();
         this.sendMessage();
-      }
-    });
+      },
+      true,
+    );
+    // Ensure correct initial height
+    this.autoResizeTextarea();
 
     this.sendBtnEl = inputWrapper.createEl('button', {
       cls: 'ollama-chat-send',
@@ -68,8 +82,13 @@ export class OllamaChatView extends ItemView {
   async onClose(): Promise<void> {}
 
   private autoResizeTextarea(): void {
-    this.inputEl.style.height = 'auto';
-    this.inputEl.style.height = `${this.inputEl.scrollHeight}px`;
+    const el = this.inputEl;
+    el.style.height = 'auto';
+    const target = Math.max(
+      el.scrollHeight,
+      OllamaChatView.MIN_TEXTAREA_HEIGHT_PX,
+    );
+    el.style.height = `${target}px`;
   }
 
   private renderMessages(): void {
@@ -109,6 +128,13 @@ export class OllamaChatView extends ItemView {
     if (!text || this.isSending) return;
 
     this.messages.push({ type: 'request', content: text });
+    // Log request to console with the model that will be used
+    try {
+      const model = this.plugin.settings.defaultModel || getDefaultModel();
+      console.log('[Ollama Chat] → Request', { model, content: text });
+    } catch (_e) {
+      // no-op
+    }
     this.inputEl.value = '';
     this.autoResizeTextarea();
     this.renderMessages();
@@ -158,6 +184,8 @@ export class OllamaChatView extends ItemView {
           this.lastStreamRenderMs = now;
         }
       }
+      // Log final response contents
+      console.log('[Ollama Chat] ← Response', { model, content: responseMsg.content });
       // Final render to ensure completion
       if (this.activeResponseContentEl) {
         this.renderMarkdownTo(this.activeResponseContentEl, responseMsg.content, true);
