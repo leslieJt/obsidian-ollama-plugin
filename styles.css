@@ -54,11 +54,82 @@ If your plugin does not need CSS, delete this file.
   padding: 8px 10px;
   white-space: pre-wrap;
   background-color: var(--background-modifier-hover);
+  position: relative;
 }
 
 .ollama-chat-bubble-content {
   /* markdown content container */
   padding: 2px 6px;
+}
+
+.ollama-chat-actions {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  display: flex;
+  gap: 6px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease, transform 120ms ease;
+  transform: translateY(2px);
+}
+
+.ollama-chat-message.response .ollama-chat-bubble:hover .ollama-chat-actions,
+.ollama-chat-message.response:hover .ollama-chat-actions {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.ollama-chat-action {
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-normal);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+}
+
+/* Add extra bottom padding on response bubbles to avoid overlap with hover actions */
+.ollama-chat-message.response .ollama-chat-bubble {
+  padding-bottom: 32px;
+}
+
+.ollama-chat-action:hover {
+  background: var(--background-modifier-hover);
+}
+
+.ollama-code-block {
+  position: relative;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  overflow: hidden;
+  margin: 8px 0;
+}
+
+.ollama-code-block pre {
+  margin: 0;
+  padding-top: 28px;
+}
+
+.ollama-code-copy {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  z-index: 1;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-muted);
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.ollama-code-copy:hover {
+  background: var(--background-modifier-hover);
 }
 
 /* tighten default markdown spacing inside bubbles */

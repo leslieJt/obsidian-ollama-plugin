@@ -129,7 +129,10 @@ export class OllamaChatView extends ItemView {
         contentEl.setText(msg.content);
       } else {
         // Render response as markdown
-        this.renderMarkdownTo(contentEl, msg.content);
+        this.renderMarkdownTo(contentEl, msg.content).then(() => {
+          this.enhanceRenderedContent(contentEl);
+        });
+        this.attachResponseActions(bubble, contentEl, msg);
       }
     }
     this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
@@ -250,7 +253,9 @@ export class OllamaChatView extends ItemView {
         const now = performance.now();
         if (now - this.lastStreamRenderMs > 50) {
           if (this.activeResponseContentEl) {
-            this.renderMarkdownTo(this.activeResponseContentEl, responseMsg.content, true);
+            this.renderMarkdownTo(this.activeResponseContentEl, responseMsg.content, true).then(() => {
+              if (this.activeResponseContentEl) this.enhanceRenderedContent(this.activeResponseContentEl);
+            });
             this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
           } else {
             this.renderMessages();
@@ -262,7 +267,9 @@ export class OllamaChatView extends ItemView {
       console.log('[Ollama Chat] ← Response', { model, content: responseMsg.content });
       // Final render to ensure completion
       if (this.activeResponseContentEl) {
-        this.renderMarkdownTo(this.activeResponseContentEl, responseMsg.content, true);
+        this.renderMarkdownTo(this.activeResponseContentEl, responseMsg.content, true).then(() => {
+          if (this.activeResponseContentEl) this.enhanceRenderedContent(this.activeResponseContentEl);
+        });
         this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
       }
 
@@ -297,6 +304,78 @@ export class OllamaChatView extends ItemView {
       this.app.workspace.getActiveFile()?.path ?? '',
       this,
     );
+  }
+
+  private attachResponseActions(bubble: HTMLElement, contentEl: HTMLElement, msg: { content: string }): void {
+    let actions = bubble.querySelector('.ollama-chat-actions') as HTMLElement | null;
+    if (!actions) actions = bubble.createDiv({ cls: 'ollama-chat-actions' });
+
+    actions.empty();
+
+    const copyBtn = actions.createEl('button', { cls: 'ollama-chat-action copy', text: 'Copy' });
+    copyBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(msg.content);
+        new Notice('Copied response to clipboard');
+      } catch (_e) {
+        // Fallback: try selecting and copying
+        try {
+          const range = document.createRange();
+          range.selectNodeContents(contentEl);
+          const selection = window.getSelection();
+          selection?.removeAllRanges();
+          selection?.addRange(range);
+          document.execCommand('copy');
+          selection?.removeAllRanges();
+          new Notice('Copied response');
+        } catch (e) {
+          console.warn('Copy failed', e);
+          new Notice('Failed to copy');
+        }
+      }
+    });
+
+    const copyMdBtn = actions.createEl('button', { cls: 'ollama-chat-action copy-md', text: 'Copy as Markdown' });
+    copyMdBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(msg.content);
+        new Notice('Copied markdown to clipboard');
+      } catch (e) {
+        console.warn('Copy markdown failed', e);
+        new Notice('Failed to copy markdown');
+      }
+    });
+  }
+
+  private enhanceRenderedContent(contentEl: HTMLElement): void {
+    // Improve code blocks: add copy button and better spacing
+    const pres = Array.from(contentEl.querySelectorAll('pre'));
+    for (const pre of pres) {
+      const code = pre.querySelector('code');
+      if (!code) continue;
+      let wrapper = pre.parentElement;
+      if (!wrapper || !wrapper.classList.contains('ollama-code-block')) {
+        wrapper = document.createElement('div');
+        wrapper.className = 'ollama-code-block';
+        pre.replaceWith(wrapper);
+        wrapper.appendChild(pre);
+      }
+      if (!wrapper.querySelector('.ollama-code-copy')) {
+        const btn = document.createElement('button');
+        btn.className = 'ollama-code-copy';
+        btn.textContent = 'Copy code';
+        btn.addEventListener('click', async () => {
+          try {
+            await navigator.clipboard.writeText(code.textContent ?? '');
+            new Notice('Code copied');
+          } catch (e) {
+            console.warn('Copy code failed', e);
+            new Notice('Failed to copy code');
+          }
+        });
+        wrapper.insertBefore(btn, wrapper.firstChild);
+      }
+    }
   }
 
   private async resetConversation(): Promise<void> {
