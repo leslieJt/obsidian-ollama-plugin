@@ -12,7 +12,7 @@ The plugin provides a powerful AI chat interface that integrates seamlessly with
 - **Streaming responses**: Answers render as Markdown with auto-scroll and code-block copy buttons.
 - **Context from active file**: The current note is sent as context automatically for richer, on-topic replies.
 - **Recommended questions**: A suggestions panel proposes 5 follow-up questions based on the active file; click to ask instantly. Can be disabled in settings to prevent unwanted API calls. **Disabled by default** for privacy and performance.
-- **Conversation history**: Persists across sessions; use Reset to clear and abort any in-flight response.
+- **Conversation history**: Persists across sessions; use Reset to clear and abort any in-flight response. The Reset button is automatically hidden when there are no messages for the current file.
 - **Model selection**: Settings tab lists installed Ollama models and lets you choose the default; includes a Refresh button.
 
 ### Requirements
@@ -42,7 +42,7 @@ Manual (development or sideload):
 
 - Open the chat: click the ribbon icon or run the `Open Ollama Chat` command.
 - Type your prompt. Press Enter to send, Cmd+Enter to insert a newline.
-- Click **Reset** to clear history and cancel ongoing responses.
+- Click **Reset** to clear history and cancel ongoing responses. The Reset button automatically appears when you have conversation history and disappears when there are no messages for the current file.
 - Use the **copy** buttons on responses and code blocks.
 - With an active note open, check the **Recommended questions** panel at the bottom of the chat and click a suggestion to ask it. Note: This feature must be enabled in Settings → Ollama Plugin → "Enable recommendations".
 
@@ -50,6 +50,14 @@ Manual (development or sideload):
 
 - **Default Ollama model**: Choose from installed models (requires Ollama running). Use **Refresh models** to reload the list.
 - **Enable recommendations**: Toggle AI-generated question recommendations on/off. When disabled, no API calls are made for suggestions, improving performance and privacy.
+
+### Smart UI Behavior
+
+The plugin intelligently adapts its interface based on the current state:
+
+- **Dynamic Reset Button**: The Reset button automatically appears when you have conversation history for the current file and disappears when there are no messages, keeping the interface clean and intuitive.
+- **File-Aware History**: Each file maintains its own conversation history, and the UI updates accordingly when switching between files.
+- **Contextual Recommendations**: The recommendation system adapts to your current note content and provides relevant suggestions.
 
 ### Recommendation System
 

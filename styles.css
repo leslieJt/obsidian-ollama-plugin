@@ -323,6 +323,11 @@ If your plugin does not need CSS, delete this file.
   background: var(--background-modifier-hover);
 }
 
+/* Hidden class for elements that should be completely hidden */
+.hidden {
+  display: none !important;
+}
+
 .ollama-chat-clear-all {
   background: var(--background-secondary);
   color: var(--text-muted);

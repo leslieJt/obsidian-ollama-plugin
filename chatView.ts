@@ -138,6 +138,7 @@ export class OllamaChatView extends ItemView {
     this.suggestionAnchorIndex = this.messages.length;
 
     this.renderMessages();
+    this.updateResetButtonVisibility(); // Set initial reset button visibility
 
     // Refresh recommendations panel only if enabled
     if (this.plugin.settings.enableRecommendations) {
@@ -245,6 +246,7 @@ export class OllamaChatView extends ItemView {
     this.inputEl.value = '';
     this.autoResizeTextarea();
     this.renderMessages();
+    this.updateResetButtonVisibility(); // Update reset button visibility after adding message
 
     await this.generateAssistantResponse();
   }
@@ -360,6 +362,7 @@ export class OllamaChatView extends ItemView {
       } catch (_e) {
         // no-op
       }
+      this.updateResetButtonVisibility(); // Update reset button visibility after assistant response
     } catch (error) {
       console.warn('Ollama chat error', error);
       const message = (error as any)?.message ?? '';
@@ -472,6 +475,7 @@ export class OllamaChatView extends ItemView {
     this.messages = [];
     this.suggestionAnchorIndex = 0;
     this.renderMessages();
+    this.updateResetButtonVisibility(); // Update reset button visibility after resetting
     try {
       if (this.currentFilePath) {
         await this.plugin.setChatHistory?.([], this.currentFilePath);
@@ -504,6 +508,7 @@ export class OllamaChatView extends ItemView {
     this.messages = [];
     this.suggestionAnchorIndex = 0;
     this.renderMessages();
+    this.updateResetButtonVisibility(); // Update reset button visibility after clearing all history
   }
 
   private getCurrentFileDisplayName(): string {
@@ -521,6 +526,22 @@ export class OllamaChatView extends ItemView {
     if (!this.headerEl) return;
     const fileName = this.getCurrentFileDisplayName();
     this.headerEl.setText(`Chat: ${fileName}`);
+  }
+
+  private updateResetButtonVisibility(): void {
+    if (!this.resetBtnEl) return;
+    
+    // Check if there are messages for the current file
+    const hasHistoryMessages = this.currentFilePath && this.messages.length > 0;
+    
+    // Hide/show the reset button based on whether there are history messages
+    if (hasHistoryMessages) {
+      this.resetBtnEl.style.display = 'block';
+      this.resetBtnEl.removeClass('hidden');
+    } else {
+      this.resetBtnEl.style.display = 'none';
+      this.resetBtnEl.addClass('hidden');
+    }
   }
 
   private ensureSuggestionsVisible(): void {
@@ -570,6 +591,7 @@ export class OllamaChatView extends ItemView {
       // Update UI elements
       this.updateResetButtonText();
       this.updateHeaderText();
+      this.updateResetButtonVisibility(); // Update reset button visibility
       
       // Refresh recommendations panel for the new file only if enabled
       if (this.recommendationsPanel && this.plugin.settings.enableRecommendations) {
@@ -612,6 +634,7 @@ export class OllamaChatView extends ItemView {
     
     // Re-render messages
     this.renderMessages();
+    this.updateResetButtonVisibility(); // Update reset button visibility after loading history
   }
 }
 
