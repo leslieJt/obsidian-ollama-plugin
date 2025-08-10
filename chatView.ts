@@ -575,7 +575,6 @@ export class OllamaChatView extends ItemView {
         // Small delay to ensure file change is fully processed
         setTimeout(() => {
           if (this.recommendationsPanel) {
-            console.log('[Ollama Chat] Executing delayed refresh');
             void this.recommendationsPanel.refresh();
           }
         }, 100);

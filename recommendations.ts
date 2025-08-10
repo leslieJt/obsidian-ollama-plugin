@@ -10,10 +10,10 @@ export class RecommendationsPanel {
   private isLoading = false;
   private errorMessage: string | null = null;
   private questions: string[] = [];
+  private lastProcessedFilePath: string | null = null;
   private abortController: AbortController | null = null;
   private onPrefill: ((q: string) => void) | null = null;
   private onAsk: ((q: string) => void) | null = null;
-  private currentFilePath: string | null = null;
 
   constructor(app: App, plugin: MyPlugin) {
     this.app = app;
@@ -39,29 +39,29 @@ export class RecommendationsPanel {
     }
 
     // Always show loading state for new files or when forced
+    // This ensures loading UI is visible when switching between articles
     if (!force && this.questions.length > 0) {
-      // Check if the questions are for the current file
-      const currentFilePath = activeFile.path;
-      if (this.currentFilePath === currentFilePath) {
+      // Check if this is a different file than what we have questions for
+      const currentFilePath = this.questions.length > 0 ? this.lastProcessedFilePath : null;
+      if (currentFilePath === activeFile.path) {
+        console.log('[Recommendations] Using cached questions for:', activeFile.path);
         this.render();
         return;
       }
     }
-
-    // Clear old questions for new files to ensure loading state is shown
-    if (this.currentFilePath !== activeFile.path) {
-      this.questions = [];
-      this.currentFilePath = activeFile.path;
-    }
+    
+    console.log('[Recommendations] Starting refresh for file:', activeFile.path, 'force:', force);
 
     try { this.abortController?.abort(); } catch { /* no-op */ }
     this.abortController = new AbortController();
 
-    console.log('[Recommendations] Starting refresh for file:', activeFile.path);
+    // Immediately show loading state for better UX
     this.isLoading = true;
     this.errorMessage = null;
-    this.currentFilePath = activeFile.path;
     this.render();
+    
+    // Small delay to ensure loading state is visible before starting the request
+    await new Promise(resolve => setTimeout(resolve, 50));
 
     try {
       const content = await this.app.vault.read(activeFile);
@@ -69,16 +69,15 @@ export class RecommendationsPanel {
       const truncated = content.length > MAX_CONTEXT_CHARS ? content.slice(0, MAX_CONTEXT_CHARS) : content;
       const list = await this.fetchRecommendedQuestions(activeFile.path, truncated, this.abortController.signal);
       this.questions = list.slice(0, 5);
-      console.log('[Recommendations] Generated questions:', this.questions.length);
+      this.lastProcessedFilePath = activeFile.path;
     } catch (e) {
       const msg = (e as any)?.message ?? 'Failed to generate recommendations';
       if (!/abort/i.test(msg)) this.errorMessage = msg;
       this.questions = [];
-      console.error('[Recommendations] Error:', msg);
+      this.lastProcessedFilePath = null;
     } finally {
       this.isLoading = false;
       this.render();
-      console.log('[Recommendations] Refresh completed, loading:', this.isLoading);
     }
   }
 
@@ -88,18 +87,9 @@ export class RecommendationsPanel {
     this.onPrefill = null;
     this.onAsk = null;
     this.questions = [];
+    this.lastProcessedFilePath = null;
     this.errorMessage = null;
     this.isLoading = false;
-  }
-
-  // Debug method to check current state
-  getDebugInfo(): { isLoading: boolean; questionsCount: number; currentFilePath: string | null; hasRootEl: boolean } {
-    return {
-      isLoading: this.isLoading,
-      questionsCount: this.questions.length,
-      currentFilePath: this.currentFilePath,
-      hasRootEl: !!this.rootEl
-    };
   }
 
   private render(): void {
@@ -107,8 +97,6 @@ export class RecommendationsPanel {
     const activeFile = this.app.workspace.getActiveFile();
     this.rootEl.empty();
     if (!activeFile) return;
-
-    console.log('[Recommendations] Rendering, loading state:', this.isLoading, 'questions:', this.questions.length);
 
     const header = this.rootEl.createDiv({ cls: 'ollama-chat-suggestions-header' });
     header.createDiv({ cls: 'ollama-chat-suggestions-title', text: 'Recommended questions' });
@@ -120,7 +108,7 @@ export class RecommendationsPanel {
     meta.setText(`Based on: ${activeFile.path}`);
 
     if (this.isLoading) {
-      console.log('[Recommendations] Showing loading state');
+      console.log('[Recommendations] Rendering loading state');
       const list = this.rootEl.createDiv({ cls: 'ollama-chat-suggestions-grid' });
       for (let i = 0; i < 5; i++) {
         const card = list.createDiv({ cls: 'ollama-chat-suggestion-card loading' });
