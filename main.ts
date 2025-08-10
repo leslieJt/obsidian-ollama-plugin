@@ -4,12 +4,12 @@ import { registerChatView } from './chatView';
 
 interface MyPluginSettings {
     defaultModel: string;
-    chatHistory?: Array<{ type: 'request' | 'response'; content: string; model?: string }>;
+    chatHistory: Record<string, Array<{ type: 'request' | 'response'; content: string; model?: string }>>;
 }
 
 const DEFAULT_SETTINGS: MyPluginSettings = {
     defaultModel: getDefaultModel(),
-    chatHistory: [],
+    chatHistory: {},
 };
 
 
@@ -51,15 +51,36 @@ export default class MyPlugin extends Plugin {
 		await this.saveData(this.settings);
 	}
 
-	getChatHistory(): Array<{ type: 'request' | 'response'; content: string; model?: string }> {
-		return this.settings.chatHistory ?? [];
+	getChatHistory(filePath?: string): Array<{ type: 'request' | 'response'; content: string; model?: string }> {
+		if (!filePath) return [];
+		return this.settings.chatHistory[filePath] ?? [];
 	}
 
 	async setChatHistory(
 		messages: Array<{ type: 'request' | 'response'; content: string; model?: string }>,
+		filePath?: string,
 	): Promise<void> {
-		this.settings.chatHistory = messages;
+		if (!filePath) return;
+		this.settings.chatHistory[filePath] = messages;
 		await this.saveSettings();
+	}
+
+	async clearChatHistory(filePath?: string): Promise<void> {
+		if (filePath) {
+			delete this.settings.chatHistory[filePath];
+		} else {
+			this.settings.chatHistory = {};
+		}
+		await this.saveSettings();
+	}
+
+	async clearAllChatHistory(): Promise<void> {
+		this.settings.chatHistory = {};
+		await this.saveSettings();
+	}
+
+	getAllChatHistoryKeys(): string[] {
+		return Object.keys(this.settings.chatHistory);
 	}
 
 	async fetchOllamaModels(): Promise<string[]> {

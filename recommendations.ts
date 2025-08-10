@@ -13,6 +13,7 @@ export class RecommendationsPanel {
   private abortController: AbortController | null = null;
   private onPrefill: ((q: string) => void) | null = null;
   private onAsk: ((q: string) => void) | null = null;
+  private currentFilePath: string | null = null;
 
   constructor(app: App, plugin: MyPlugin) {
     this.app = app;
@@ -37,16 +38,29 @@ export class RecommendationsPanel {
       return;
     }
 
+    // Always show loading state for new files or when forced
     if (!force && this.questions.length > 0) {
-      this.render();
-      return;
+      // Check if the questions are for the current file
+      const currentFilePath = activeFile.path;
+      if (this.currentFilePath === currentFilePath) {
+        this.render();
+        return;
+      }
+    }
+
+    // Clear old questions for new files to ensure loading state is shown
+    if (this.currentFilePath !== activeFile.path) {
+      this.questions = [];
+      this.currentFilePath = activeFile.path;
     }
 
     try { this.abortController?.abort(); } catch { /* no-op */ }
     this.abortController = new AbortController();
 
+    console.log('[Recommendations] Starting refresh for file:', activeFile.path);
     this.isLoading = true;
     this.errorMessage = null;
+    this.currentFilePath = activeFile.path;
     this.render();
 
     try {
@@ -55,13 +69,16 @@ export class RecommendationsPanel {
       const truncated = content.length > MAX_CONTEXT_CHARS ? content.slice(0, MAX_CONTEXT_CHARS) : content;
       const list = await this.fetchRecommendedQuestions(activeFile.path, truncated, this.abortController.signal);
       this.questions = list.slice(0, 5);
+      console.log('[Recommendations] Generated questions:', this.questions.length);
     } catch (e) {
       const msg = (e as any)?.message ?? 'Failed to generate recommendations';
       if (!/abort/i.test(msg)) this.errorMessage = msg;
       this.questions = [];
+      console.error('[Recommendations] Error:', msg);
     } finally {
       this.isLoading = false;
       this.render();
+      console.log('[Recommendations] Refresh completed, loading:', this.isLoading);
     }
   }
 
@@ -75,11 +92,23 @@ export class RecommendationsPanel {
     this.isLoading = false;
   }
 
+  // Debug method to check current state
+  getDebugInfo(): { isLoading: boolean; questionsCount: number; currentFilePath: string | null; hasRootEl: boolean } {
+    return {
+      isLoading: this.isLoading,
+      questionsCount: this.questions.length,
+      currentFilePath: this.currentFilePath,
+      hasRootEl: !!this.rootEl
+    };
+  }
+
   private render(): void {
     if (!this.rootEl) return;
     const activeFile = this.app.workspace.getActiveFile();
     this.rootEl.empty();
     if (!activeFile) return;
+
+    console.log('[Recommendations] Rendering, loading state:', this.isLoading, 'questions:', this.questions.length);
 
     const header = this.rootEl.createDiv({ cls: 'ollama-chat-suggestions-header' });
     header.createDiv({ cls: 'ollama-chat-suggestions-title', text: 'Recommended questions' });
@@ -91,6 +120,7 @@ export class RecommendationsPanel {
     meta.setText(`Based on: ${activeFile.path}`);
 
     if (this.isLoading) {
+      console.log('[Recommendations] Showing loading state');
       const list = this.rootEl.createDiv({ cls: 'ollama-chat-suggestions-grid' });
       for (let i = 0; i < 5; i++) {
         const card = list.createDiv({ cls: 'ollama-chat-suggestion-card loading' });

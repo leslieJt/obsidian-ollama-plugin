@@ -19,6 +19,15 @@ If your plugin does not need CSS, delete this file.
   flex-direction: column;
 }
 
+.ollama-chat-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  font-weight: 600;
+  color: var(--text-normal);
+  font-size: 14px;
+}
+
 /* Ensure text is selectable inside the chat */
 .ollama-chat, .ollama-chat * {
   -webkit-user-select: text;
@@ -294,4 +303,32 @@ If your plugin does not need CSS, delete this file.
 .ollama-chat-send.is-loading {
   opacity: 0.7;
   pointer-events: none;
+}
+
+/* Button styling */
+.ollama-chat-reset,
+.ollama-chat-clear-all {
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-normal);
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background-color 0.2s ease;
+}
+
+.ollama-chat-reset:hover,
+.ollama-chat-clear-all:hover {
+  background: var(--background-modifier-hover);
+}
+
+.ollama-chat-clear-all {
+  background: var(--background-secondary);
+  color: var(--text-muted);
+}
+
+.ollama-chat-clear-all:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
 }

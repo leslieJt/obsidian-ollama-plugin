@@ -24,10 +24,18 @@ export class OllamaChatView extends ItemView {
   private currentAbortController: AbortController | null = null;
   private recommendationsPanel: RecommendationsPanel | null = null;
   private suggestionAnchorIndex: number = 0;
+  private currentFilePath: string | null = null;
+  private fileChangeListener: () => void;
+  private headerEl: HTMLElement | null = null;
 
   constructor(leaf: WorkspaceLeaf, plugin: MyPlugin) {
     super(leaf);
     this.plugin = plugin;
+    
+    // Create file change listener
+    this.fileChangeListener = () => {
+      this.onActiveFileChanged();
+    };
   }
 
   getViewType(): string {
@@ -48,6 +56,11 @@ export class OllamaChatView extends ItemView {
     (container as HTMLElement).addClass('ollama-chat-container');
 
     const root = (container as HTMLElement).createDiv({ cls: 'ollama-chat' });
+    
+    // Add header showing current file
+    this.headerEl = root.createDiv({ cls: 'ollama-chat-header' });
+    this.updateHeaderText();
+    
     // Messages list (scrollable)
     this.messagesEl = root.createDiv({ cls: 'ollama-chat-messages' });
     // Suggestions panel lives at the bottom of the messages list so it scrolls with history
@@ -91,23 +104,15 @@ export class OllamaChatView extends ItemView {
       text: 'Reset',
     });
     this.resetBtnEl.addEventListener('click', () => this.resetConversation());
-
-    // Load persisted messages from settings
-    try {
-      const persisted = this.plugin.getChatHistory?.() ?? [];
-      if (Array.isArray(persisted) && persisted.length > 0) {
-        this.messages = persisted.map((m) => ({ ...m }));
-      }
-    } catch (_e) {
-      // no-op
-    }
-
-    // Anchor suggestions after any existing history
-    this.suggestionAnchorIndex = this.messages.length;
-
-    this.renderMessages();
-
-    // Initialize recommendations panel
+    
+    // Add clear all history button
+    const clearAllBtnEl = inputWrapper.createEl('button', {
+      cls: 'ollama-chat-clear-all',
+      text: 'Clear All History',
+    });
+    clearAllBtnEl.addEventListener('click', () => this.clearAllHistory());
+    
+    // Initialize recommendations panel first
     this.recommendationsPanel = new RecommendationsPanel(this.app, this.plugin);
     this.recommendationsPanel.mount(this.suggestionsEl, {
       prefill: (q: string) => {
@@ -121,12 +126,30 @@ export class OllamaChatView extends ItemView {
         void this.sendMessage();
       },
     });
+
+    // Now initialize with current active file
+    this.onActiveFileChanged();
+
+    // Register file change listener
+    this.app.workspace.on('file-open', this.fileChangeListener);
+    this.app.workspace.on('active-leaf-change', this.fileChangeListener);
+
+    // Anchor suggestions after any existing history
+    this.suggestionAnchorIndex = this.messages.length;
+
+    this.renderMessages();
+
+    // Refresh recommendations panel
     void this.recommendationsPanel.refresh();
   }
 
   async onClose(): Promise<void> {
     try { this.recommendationsPanel?.destroy(); } catch { /* no-op */ }
     this.recommendationsPanel = null;
+    
+    // Remove file change listeners
+    this.app.workspace.off('file-open', this.fileChangeListener);
+    this.app.workspace.off('active-leaf-change', this.fileChangeListener);
   }
 
   private autoResizeTextarea(): void {
@@ -140,7 +163,12 @@ export class OllamaChatView extends ItemView {
   }
 
   private renderMessages(): void {
+    // Temporarily remove suggestions to preserve them
     const suggestionsNode = this.suggestionsEl;
+    if (suggestionsNode && suggestionsNode.parentNode) {
+      suggestionsNode.parentNode.removeChild(suggestionsNode);
+    }
+    
     this.messagesEl.empty();
 
     const anchor = Math.min(Math.max(this.suggestionAnchorIndex, 0), this.messages.length);
@@ -174,7 +202,7 @@ export class OllamaChatView extends ItemView {
 
     // Render history before suggestions
     renderList(before);
-    // Insert suggestions node
+    // Re-insert suggestions node
     if (suggestionsNode) this.messagesEl.appendChild(suggestionsNode);
     // Render new messages after suggestions
     renderList(after);
@@ -199,7 +227,9 @@ export class OllamaChatView extends ItemView {
     this.messages.push({ type: 'request', content: text });
     // persist after adding user message
     try {
-      await this.plugin.setChatHistory?.(this.messages);
+      if (this.currentFilePath) {
+        await this.plugin.setChatHistory?.(this.messages, this.currentFilePath);
+      }
     } catch (_e) {
       // no-op
     }
@@ -322,7 +352,9 @@ export class OllamaChatView extends ItemView {
 
       // persist after completing assistant response
       try {
-        await this.plugin.setChatHistory?.(this.messages);
+        if (this.currentFilePath) {
+          await this.plugin.setChatHistory?.(this.messages, this.currentFilePath);
+        }
       } catch (_e) {
         // no-op
       }
@@ -439,10 +471,144 @@ export class OllamaChatView extends ItemView {
     this.suggestionAnchorIndex = 0;
     this.renderMessages();
     try {
-      await this.plugin.setChatHistory?.([]);
+      if (this.currentFilePath) {
+        await this.plugin.setChatHistory?.([], this.currentFilePath);
+      }
     } catch (_e) {
       // no-op
     }
+  }
+
+  private async clearAllHistory(): Promise<void> {
+    // Abort any in-flight request
+    try {
+      this.currentAbortController?.abort();
+    } catch (_e) {
+      // no-op
+    }
+    this.activeResponseBubble = null;
+    this.activeResponseContentEl = null;
+    this.setSendingState(false);
+    
+    // Clear all chat history across all files
+    try {
+      await this.plugin.clearAllChatHistory?.();
+      new Notice('All chat history cleared');
+    } catch (_e) {
+      new Notice('Failed to clear all chat history');
+    }
+    
+    // Clear current conversation
+    this.messages = [];
+    this.suggestionAnchorIndex = 0;
+    this.renderMessages();
+  }
+
+  private getCurrentFileDisplayName(): string {
+    if (!this.currentFilePath) return 'No file';
+    const fileName = this.currentFilePath.split('/').pop() || this.currentFilePath;
+    return fileName;
+  }
+
+  private updateResetButtonText(): void {
+    const fileName = this.getCurrentFileDisplayName();
+    this.resetBtnEl.setText(`Reset (${fileName})`);
+  }
+
+  private updateHeaderText(): void {
+    if (!this.headerEl) return;
+    const fileName = this.getCurrentFileDisplayName();
+    this.headerEl.setText(`Chat: ${fileName}`);
+  }
+
+  private ensureSuggestionsVisible(): void {
+    // Make sure the suggestions element is properly positioned and visible
+    if (this.suggestionsEl && this.messagesEl) {
+      // Ensure suggestions are at the bottom of messages
+      if (!this.messagesEl.contains(this.suggestionsEl)) {
+        console.log('[Ollama Chat] Re-attaching suggestions element');
+        this.messagesEl.appendChild(this.suggestionsEl);
+      }
+      
+      // Make sure suggestions are visible
+      this.suggestionsEl.style.display = 'block';
+      
+      console.log('[Ollama Chat] Suggestions element status:', {
+        visible: this.suggestionsEl.style.display !== 'none',
+        inDOM: this.messagesEl.contains(this.suggestionsEl),
+        children: this.suggestionsEl.children.length
+      });
+    } else {
+      console.warn('[Ollama Chat] Missing suggestions or messages elements:', {
+        suggestionsEl: !!this.suggestionsEl,
+        messagesEl: !!this.messagesEl
+      });
+    }
+  }
+
+  private onActiveFileChanged(): void {
+    const activeFile = this.app.workspace.getActiveFile();
+    const newFilePath = activeFile?.path || null;
+    
+    console.log('[Ollama Chat] File changed:', { from: this.currentFilePath, to: newFilePath });
+    
+    // If file path changed, save current conversation and load new one
+    if (this.currentFilePath !== newFilePath) {
+      // Save current conversation if we have one
+      if (this.currentFilePath && this.messages.length > 0) {
+        this.plugin.setChatHistory(this.messages, this.currentFilePath).catch(console.warn);
+      }
+      
+      // Update current file path
+      this.currentFilePath = newFilePath;
+      
+      // Load conversation history for new file
+      this.loadConversationHistory();
+      
+      // Update UI elements
+      this.updateResetButtonText();
+      this.updateHeaderText();
+      
+      // Refresh recommendations panel for the new file
+      if (this.recommendationsPanel) {
+        console.log('[Ollama Chat] Refreshing recommendations panel');
+        // Small delay to ensure file change is fully processed
+        setTimeout(() => {
+          if (this.recommendationsPanel) {
+            console.log('[Ollama Chat] Executing delayed refresh');
+            void this.recommendationsPanel.refresh();
+          }
+        }, 100);
+      } else {
+        console.warn('[Ollama Chat] No recommendations panel available');
+      }
+      
+      // Ensure suggestions element is visible and properly positioned
+      this.ensureSuggestionsVisible();
+    }
+  }
+
+  private loadConversationHistory(): void {
+    if (this.currentFilePath) {
+      try {
+        const persisted = this.plugin.getChatHistory(this.currentFilePath);
+        if (Array.isArray(persisted) && persisted.length > 0) {
+          this.messages = persisted.map((m) => ({ ...m }));
+        } else {
+          this.messages = [];
+        }
+      } catch (_e) {
+        this.messages = [];
+      }
+    } else {
+      this.messages = [];
+    }
+    
+    // Reset suggestion anchor
+    this.suggestionAnchorIndex = this.messages.length;
+    
+    // Re-render messages
+    this.renderMessages();
   }
 }
 
