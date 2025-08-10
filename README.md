@@ -2,6 +2,10 @@
 
 Local-first AI chat inside Obsidian, powered by Ollama's OpenAI-compatible API. Open a side-pane chat, stream Markdown answers, ask context-aware questions about your current note, and manage the default model directly in settings.
 
+![Plugin Interface](interface.png)
+
+The plugin provides a powerful AI chat interface that integrates seamlessly with Obsidian, featuring a dual-panel layout with your content on the left and AI assistance on the right. The interface includes recommended questions, streaming responses, and context-aware interactions based on your active notes.
+
 ### Features
 
 - **Side pane chat view**: Ribbon icon and command palette entry to open `Ollama Chat`.
