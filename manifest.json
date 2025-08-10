@@ -1,7 +1,7 @@
 {
 	"id": "obsidian-ollama-plugin",
 	"name": "Ollama Plugin",
-	"version": "1.0.3",
+	"version": "1.0.4",
 	"minAppVersion": "0.16.0",
 	"description": "Ollama plugin for Obsidian.",
 	"author": "jt",
