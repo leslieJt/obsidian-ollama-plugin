@@ -1,7 +1,7 @@
 {
 	"name": "obsidian-ollama-plugin",
-    "version": "1.0.2",
-    "description": "Ollama plugin for Obsidian (https://obsidian.md)",
+	"version": "1.0.3",
+	"description": "Ollama plugin for Obsidian (https://obsidian.md)",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
@@ -10,8 +10,8 @@
 		"format": "prettier --write .",
 		"format:check": "prettier --check ."
 	},
-    "keywords": [],
-    "author": "jt",
+	"keywords": [],
+	"author": "jt",
 	"license": "MIT",
 	"devDependencies": {
 		"@types/node": "^16.11.6",
