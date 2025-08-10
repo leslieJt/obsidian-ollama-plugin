@@ -6,11 +6,12 @@ import RecommendationsPanel from './recommendations';
 
 export const VIEW_TYPE_OLLAMA_CHAT = 'ollama-chat-view';
 
-export type ConversationMessageType = 'request' | 'response';
+export type ConversationMessageType = 'request' | 'response' | 'summary';
 
 export class OllamaChatView extends ItemView {
   private plugin: MyPlugin;
   private messages: Array<{ type: ConversationMessageType; content: string; model?: string }> = [];
+  private summaryMessages: Array<{ type: 'summary'; content: string; model?: string }> = [];
   private messagesEl!: HTMLElement;
   private suggestionsEl!: HTMLElement;
   private inputEl!: HTMLTextAreaElement;
@@ -105,12 +106,12 @@ export class OllamaChatView extends ItemView {
     });
     this.resetBtnEl.addEventListener('click', () => this.resetConversation());
     
-    // Add clear all history button
-    const clearAllBtnEl = inputWrapper.createEl('button', {
-      cls: 'ollama-chat-clear-all',
-      text: 'Clear All History',
+    // Add summary button
+    const summaryBtnEl = inputWrapper.createEl('button', {
+      cls: 'ollama-chat-summary',
+      text: 'Summary',
     });
-    clearAllBtnEl.addEventListener('click', () => this.clearAllHistory());
+    summaryBtnEl.addEventListener('click', () => this.sendSummaryRequest());
     
     // Initialize recommendations panel first
     this.recommendationsPanel = new RecommendationsPanel(this.app, this.plugin);
@@ -178,8 +179,30 @@ export class OllamaChatView extends ItemView {
     const before = this.messages.slice(0, anchor);
     const after = this.messages.slice(anchor);
 
+    // Render summary messages first (at the top)
+    for (const summaryMsg of this.summaryMessages) {
+      const wrapper = this.messagesEl.createDiv({
+        cls: 'ollama-chat-message summary',
+      });
+      const label = wrapper.createDiv({ cls: 'ollama-chat-label' });
+      label.setText('Summary');
+      if (summaryMsg.model) {
+        const tip = label.createSpan({ cls: 'ollama-chat-model-tip' });
+        tip.setText(` (${summaryMsg.model})`);
+      }
+      const bubble = wrapper.createDiv({ cls: 'ollama-chat-bubble' });
+      const contentEl = bubble.createDiv({ cls: 'ollama-chat-bubble-content' });
+      this.renderMarkdownTo(contentEl, summaryMsg.content).then(() => {
+        this.enhanceRenderedContent(contentEl);
+      });
+      this.attachResponseActions(bubble, contentEl, summaryMsg);
+    }
+
     const renderList = (list: Array<{ type: ConversationMessageType; content: string; model?: string }>) => {
       for (const msg of list) {
+        // Skip summary messages as they're rendered separately above
+        if (msg.type === 'summary') continue;
+        
         const isRequest = msg.type === 'request';
         const wrapper = this.messagesEl.createDiv({
           cls: `ollama-chat-message ${isRequest ? 'request' : 'response'}`,
@@ -209,6 +232,7 @@ export class OllamaChatView extends ItemView {
     if (suggestionsNode) this.messagesEl.appendChild(suggestionsNode);
     // Render new messages after suggestions
     renderList(after);
+    
     this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
   }
 
@@ -231,7 +255,9 @@ export class OllamaChatView extends ItemView {
     // persist after adding user message
     try {
       if (this.currentFilePath) {
-        await this.plugin.setChatHistory?.(this.messages, this.currentFilePath);
+        // Filter out summary messages when saving chat history
+        const chatMessagesOnly = this.messages.filter(m => m.type !== 'summary');
+        await this.plugin.setChatHistory(chatMessagesOnly, this.currentFilePath);
       }
     } catch (_e) {
       // no-op
@@ -271,6 +297,8 @@ export class OllamaChatView extends ItemView {
       const fullHistory: ChatCompletionMessageParam[] = this.messages
         // exclude the last assistant placeholder while content is empty
         .filter((m, idx, arr) => !(m.type === 'response' && m.content === '' && idx === arr.length - 1))
+        // exclude summary messages from the history sent to the model
+        .filter((m) => m.type !== 'summary')
         .map((m) =>
           m.type === 'request'
             ? ({ role: 'user' as const, content: m.content })
@@ -357,7 +385,9 @@ export class OllamaChatView extends ItemView {
       // persist after completing assistant response
       try {
         if (this.currentFilePath) {
-          await this.plugin.setChatHistory?.(this.messages, this.currentFilePath);
+          // Filter out summary messages when saving chat history
+          const chatMessagesOnly = this.messages.filter(m => m.type !== 'summary');
+          await this.plugin.setChatHistory(chatMessagesOnly, this.currentFilePath);
         }
       } catch (_e) {
         // no-op
@@ -473,15 +503,180 @@ export class OllamaChatView extends ItemView {
     this.activeResponseContentEl = null;
     this.setSendingState(false);
     this.messages = [];
+    this.summaryMessages = [];
     this.suggestionAnchorIndex = 0;
+    
     this.renderMessages();
     this.updateResetButtonVisibility(); // Update reset button visibility after resetting
     try {
       if (this.currentFilePath) {
-        await this.plugin.setChatHistory?.([], this.currentFilePath);
+        await this.plugin.setChatHistory([], this.currentFilePath);
+        await this.plugin.setSummaryHistory([], this.currentFilePath);
       }
     } catch (_e) {
       // no-op
+    }
+  }
+
+  private async sendSummaryRequest(): Promise<void> {
+    if (this.isSending) return;
+    
+    const activeFile = this.app.workspace.getActiveFile();
+    if (!activeFile) {
+      new Notice('No active file to summarize');
+      return;
+    }
+    
+    try {
+      const fileContents = await this.app.vault.read(activeFile);
+      const summaryPrompt = `Please provide a concise summary of this article in 2-3 sentences, highlighting the main points and key takeaways.`;
+      
+      // Create a new temporary messages array for the summary request
+      const summaryMessages: Array<{ type: ConversationMessageType; content: string; model?: string }> = [];
+      
+      // Add the summary request to the temporary array
+      summaryMessages.push({ type: 'request', content: summaryPrompt });
+      
+      // Add the file content as context
+      summaryMessages.push({ 
+        type: 'request', 
+        content: `Article content:\n\n${fileContents}` 
+      });
+      
+      // Generate response using the temporary messages array
+      await this.generateSummaryResponse(summaryMessages);
+    } catch (error) {
+      console.warn('Failed to send summary request:', error);
+      new Notice('Failed to send summary request');
+    }
+  }
+
+  private async generateSummaryResponse(summaryMessages: Array<{ type: ConversationMessageType; content: string; model?: string }>): Promise<void> {
+    this.setSendingState(true);
+    try {
+      const client = getOllamaClient();
+      const model = this.plugin.settings.defaultModel || getDefaultModel();
+      const responseMsg = { type: 'response' as ConversationMessageType, content: '', model };
+      summaryMessages.push(responseMsg);
+      
+      // Create a temporary UI element to show the streaming summary response
+      const tempMessagesEl = this.messagesEl.createDiv({ cls: 'ollama-chat-message response temp-summary' });
+      const label = tempMessagesEl.createDiv({ cls: 'ollama-chat-label' });
+      label.setText('Summary');
+      if (responseMsg.model) {
+        const tip = label.createSpan({ cls: 'ollama-chat-model-tip' });
+        tip.setText(` (${responseMsg.model})`);
+      }
+      const bubble = tempMessagesEl.createDiv({ cls: 'ollama-chat-bubble' });
+      const contentEl = bubble.createDiv({ cls: 'ollama-chat-bubble-content' });
+      
+      // capture bubble element for incremental updates
+      this.activeResponseBubble = bubble;
+      this.activeResponseContentEl = contentEl;
+
+      const fullHistory: ChatCompletionMessageParam[] = summaryMessages
+        // exclude the last assistant placeholder while content is empty
+        .filter((m, idx, arr) => !(m.type === 'response' && m.content === '' && idx === arr.length - 1))
+        .map((m) =>
+          m.type === 'request'
+            ? ({ role: 'user' as const, content: m.content })
+            : ({ role: 'assistant' as const, content: m.content }),
+        );
+
+      // Construct messages to send with a fixed system prompt
+      let messagesToSend: ChatCompletionMessageParam[] = [];
+      const systemPrompt: ChatCompletionMessageParam = {
+        role: 'system',
+        content:
+          'You are an expert article analyst. Provide concise, well-structured summaries in 2-3 sentences highlighting main points and key takeaways.',
+      };
+      messagesToSend.push(systemPrompt);
+      messagesToSend = [...messagesToSend, ...fullHistory];
+
+      // Log the exact history being sent to the model
+      try {
+        console.log('[Ollama Chat] → Summary History (to model)', { model, messages: messagesToSend });
+      } catch (_e) {
+        // no-op
+      }
+
+      this.currentAbortController = new AbortController();
+      const stream = (await client.chat.completions.create({
+        model,
+        stream: true,
+        messages: messagesToSend,
+      }, { signal: this.currentAbortController.signal })) as any;
+
+      for await (const part of stream) {
+        const delta = part?.choices?.[0]?.delta?.content ?? part?.choices?.[0]?.message?.content ?? '';
+        if (!delta) continue;
+        responseMsg.content += delta;
+        // Throttle markdown re-render to ~20fps
+        const now = performance.now();
+        if (now - this.lastStreamRenderMs > 50) {
+          if (this.activeResponseContentEl) {
+            this.renderMarkdownTo(this.activeResponseContentEl, responseMsg.content, true).then(() => {
+              if (this.activeResponseContentEl) this.enhanceRenderedContent(this.activeResponseContentEl);
+            });
+            this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
+          }
+          this.lastStreamRenderMs = now;
+        }
+      }
+      
+      // Log final response contents
+      console.log('[Ollama Chat] ← Summary Response', { model, content: responseMsg.content });
+      
+      // Final render to ensure completion
+      if (this.activeResponseContentEl) {
+        this.renderMarkdownTo(this.activeResponseContentEl, responseMsg.content, true).then(() => {
+          if (this.activeResponseContentEl) this.enhanceRenderedContent(this.activeResponseContentEl);
+        });
+        this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
+      }
+
+      // Store the completed summary in summaryMessages array only
+      const completedSummary = { type: 'summary' as const, content: responseMsg.content, model };
+      this.summaryMessages.push(completedSummary);
+      
+      // Persist both chat history and summary history
+      try {
+        if (this.currentFilePath) {
+          await this.plugin.setChatHistory(this.messages, this.currentFilePath);
+          await this.plugin.setSummaryHistory(this.summaryMessages, this.currentFilePath);
+        }
+      } catch (_e) {
+        // no-op
+      }
+
+      // Add copy actions to the summary response
+      this.attachResponseActions(bubble, contentEl, responseMsg);
+      
+      // Remove the temporary element and re-render to show the proper summary message
+      if (tempMessagesEl.parentNode) {
+        tempMessagesEl.parentNode.removeChild(tempMessagesEl);
+      }
+      
+      // Clear the active response elements to prevent conflicts
+      this.activeResponseBubble = null;
+      this.activeResponseContentEl = null;
+      
+      // Re-render to show the new summary message
+      this.renderMessages();
+      
+    } catch (error) {
+      console.warn('Ollama summary error', error);
+      const message = (error as any)?.message ?? '';
+      const name = (error as any)?.name ?? '';
+      const wasAborted = name === 'AbortError' || /abort/i.test(message);
+      if (!wasAborted) {
+        new Notice('Summary failed. Check Ollama and model settings.');
+      }
+    } finally {
+      this.activeResponseBubble = null;
+      this.activeResponseContentEl = null;
+      this.setSendingState(false);
+      this.currentAbortController = null;
     }
   }
 
@@ -506,7 +701,9 @@ export class OllamaChatView extends ItemView {
     
     // Clear current conversation
     this.messages = [];
+    this.summaryMessages = [];
     this.suggestionAnchorIndex = 0;
+    
     this.renderMessages();
     this.updateResetButtonVisibility(); // Update reset button visibility after clearing all history
   }
@@ -518,8 +715,7 @@ export class OllamaChatView extends ItemView {
   }
 
   private updateResetButtonText(): void {
-    const fileName = this.getCurrentFileDisplayName();
-    this.resetBtnEl.setText(`Reset (${fileName})`);
+    this.resetBtnEl.setText('Reset');
   }
 
   private updateHeaderText(): void {
@@ -579,7 +775,14 @@ export class OllamaChatView extends ItemView {
     if (this.currentFilePath !== newFilePath) {
       // Save current conversation if we have one
       if (this.currentFilePath && this.messages.length > 0) {
-        this.plugin.setChatHistory(this.messages, this.currentFilePath).catch(console.warn);
+        // Filter out summary messages when saving chat history
+        const chatMessagesOnly = this.messages.filter(m => m.type !== 'summary');
+        this.plugin.setChatHistory(chatMessagesOnly, this.currentFilePath).catch(console.warn);
+      }
+      
+      // Save current summary messages if we have any
+      if (this.currentFilePath && this.summaryMessages.length > 0) {
+        this.plugin.setSummaryHistory(this.summaryMessages, this.currentFilePath).catch(console.warn);
       }
       
       // Update current file path
@@ -618,15 +821,26 @@ export class OllamaChatView extends ItemView {
       try {
         const persisted = this.plugin.getChatHistory(this.currentFilePath);
         if (Array.isArray(persisted) && persisted.length > 0) {
-          this.messages = persisted.map((m) => ({ ...m }));
+          // Filter out summary messages from the main chat history
+          this.messages = persisted.filter(m => m.type !== 'summary').map((m) => ({ ...m }));
         } else {
           this.messages = [];
         }
+        
+        // Load summary history separately
+        const persistedSummaries = this.plugin.getSummaryHistory(this.currentFilePath);
+        if (Array.isArray(persistedSummaries) && persistedSummaries.length > 0) {
+          this.summaryMessages = persistedSummaries.map((m) => ({ ...m }));
+        } else {
+          this.summaryMessages = [];
+        }
       } catch (_e) {
         this.messages = [];
+        this.summaryMessages = [];
       }
     } else {
       this.messages = [];
+      this.summaryMessages = [];
     }
     
     // Reset suggestion anchor

@@ -15,6 +15,33 @@ The plugin provides a powerful AI chat interface that integrates seamlessly with
 - **Conversation history**: Persists across sessions; use Reset to clear and abort any in-flight response. The Reset button is automatically hidden when there are no messages for the current file.
 - **Model selection**: Settings tab lists installed Ollama models and lets you choose the default; includes a Refresh button.
 
+### Visual Flow
+
+The chat interface follows a logical layout that keeps summaries accessible while maintaining conversation flow:
+
+```
+┌─────────────────────────┐
+│ Summary Response        │ ← Summary appears at top
+├─────────────────────────┤
+│ Request 1               │ ← Chat messages below
+│ Response 1              │
+├─────────────────────────┤
+│ Request 2               │
+│ Response 2              │
+├─────────────────────────┤
+│ Suggestions Panel       │
+├─────────────────────────┤
+│ New Request (typing)    │ ← New messages at bottom
+└─────────────────────────┘
+```
+
+**Key Layout Features:**
+- **Summary Responses**: Always appear at the top for easy reference
+- **Chat History**: Displays below summaries in chronological order
+- **Suggestions Panel**: Shows contextual questions at the bottom
+- **New Messages**: Appear at the bottom, maintaining natural conversation flow
+- **Persistent Summaries**: Summary responses remain visible throughout the conversation
+
 ### Requirements
 
 - Obsidian ≥ `0.16.0`

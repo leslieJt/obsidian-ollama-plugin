@@ -4,13 +4,15 @@ import { registerChatView } from './chatView';
 
 interface MyPluginSettings {
     defaultModel: string;
-    chatHistory: Record<string, Array<{ type: 'request' | 'response'; content: string; model?: string }>>;
+    chatHistory: Record<string, Array<{ type: 'request' | 'response' | 'summary'; content: string; model?: string }>>;
+    summaryHistory: Record<string, Array<{ type: 'summary'; content: string; model?: string }>>;
     enableRecommendations: boolean;
 }
 
 const DEFAULT_SETTINGS: MyPluginSettings = {
     defaultModel: getDefaultModel(),
     chatHistory: {},
+    summaryHistory: {},
     enableRecommendations: false,
 };
 
@@ -53,17 +55,31 @@ export default class MyPlugin extends Plugin {
 		await this.saveData(this.settings);
 	}
 
-	getChatHistory(filePath?: string): Array<{ type: 'request' | 'response'; content: string; model?: string }> {
+	getChatHistory(filePath?: string): Array<{ type: 'request' | 'response' | 'summary'; content: string; model?: string }> {
 		if (!filePath) return [];
 		return this.settings.chatHistory[filePath] ?? [];
 	}
 
+	getSummaryHistory(filePath?: string): Array<{ type: 'summary'; content: string; model?: string }> {
+		if (!filePath) return [];
+		return this.settings.summaryHistory[filePath] ?? [];
+	}
+
 	async setChatHistory(
-		messages: Array<{ type: 'request' | 'response'; content: string; model?: string }>,
+		messages: Array<{ type: 'request' | 'response' | 'summary'; content: string; model?: string }>,
 		filePath?: string,
 	): Promise<void> {
 		if (!filePath) return;
 		this.settings.chatHistory[filePath] = messages;
+		await this.saveSettings();
+	}
+
+	async setSummaryHistory(
+		summaries: Array<{ type: 'summary'; content: string; model?: string }>,
+		filePath?: string,
+	): Promise<void> {
+		if (!filePath) return;
+		this.settings.summaryHistory[filePath] = summaries;
 		await this.saveSettings();
 	}
 
@@ -76,8 +92,18 @@ export default class MyPlugin extends Plugin {
 		await this.saveSettings();
 	}
 
+	async clearSummaryHistory(filePath?: string): Promise<void> {
+		if (filePath) {
+			delete this.settings.summaryHistory[filePath];
+		} else {
+			this.settings.summaryHistory = {};
+		}
+		await this.saveSettings();
+	}
+
 	async clearAllChatHistory(): Promise<void> {
 		this.settings.chatHistory = {};
+		this.settings.summaryHistory = {};
 		await this.saveSettings();
 	}
 

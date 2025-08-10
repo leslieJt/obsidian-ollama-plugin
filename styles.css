@@ -307,7 +307,7 @@ If your plugin does not need CSS, delete this file.
 
 /* Button styling */
 .ollama-chat-reset,
-.ollama-chat-clear-all {
+.ollama-chat-summary {
   border: 1px solid var(--background-modifier-border);
   background: var(--background-primary);
   color: var(--text-normal);
@@ -319,7 +319,7 @@ If your plugin does not need CSS, delete this file.
 }
 
 .ollama-chat-reset:hover,
-.ollama-chat-clear-all:hover {
+.ollama-chat-summary:hover {
   background: var(--background-modifier-hover);
 }
 
@@ -328,12 +328,43 @@ If your plugin does not need CSS, delete this file.
   display: none !important;
 }
 
-.ollama-chat-clear-all {
+.ollama-chat-summary {
   background: var(--background-secondary);
   color: var(--text-muted);
 }
 
-.ollama-chat-clear-all:hover {
+.ollama-chat-summary:hover {
   background: var(--background-modifier-hover);
   color: var(--text-normal);
+}
+
+/* Temporary summary message styling for streaming */
+.ollama-chat-message.temp-summary {
+  opacity: 0.9;
+}
+
+.ollama-chat-message.temp-summary .ollama-chat-label {
+  color: var(--interactive-accent);
+  font-weight: 600;
+}
+
+/* Summary message styling */
+.ollama-chat-message.summary {
+  align-self: flex-start;
+  opacity: 0.9;
+}
+
+.ollama-chat-message.summary .ollama-chat-label {
+  color: var(--interactive-accent);
+  font-weight: 600;
+}
+
+.ollama-chat-message.summary .ollama-chat-bubble {
+  background-color: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-left: 3px solid var(--interactive-accent);
+}
+
+.ollama-chat-message.summary .ollama-chat-bubble:hover {
+  background-color: var(--background-modifier-hover);
 }
