@@ -11,7 +11,7 @@ The plugin provides a powerful AI chat interface that integrates seamlessly with
 - **Side pane chat view**: Ribbon icon and command palette entry to open `Ollama Chat`.
 - **Streaming responses**: Answers render as Markdown with auto-scroll and code-block copy buttons.
 - **Context from active file**: The current note is sent as context automatically for richer, on-topic replies.
-- **Recommended questions**: A suggestions panel proposes 5 follow-up questions based on the active file; click to ask instantly.
+- **Recommended questions**: A suggestions panel proposes 5 follow-up questions based on the active file; click to ask instantly. Can be disabled in settings to prevent unwanted API calls. **Disabled by default** for privacy and performance.
 - **Conversation history**: Persists across sessions; use Reset to clear and abort any in-flight response.
 - **Model selection**: Settings tab lists installed Ollama models and lets you choose the default; includes a Refresh button.
 
@@ -44,15 +44,27 @@ Manual (development or sideload):
 - Type your prompt. Press Enter to send, Cmd+Enter to insert a newline.
 - Click **Reset** to clear history and cancel ongoing responses.
 - Use the **copy** buttons on responses and code blocks.
-- With an active note open, check the **Recommended questions** panel at the bottom of the chat and click a suggestion to ask it.
+- With an active note open, check the **Recommended questions** panel at the bottom of the chat and click a suggestion to ask it. Note: This feature must be enabled in Settings → Ollama Plugin → "Enable recommendations".
 
 ### Settings
 
 - **Default Ollama model**: Choose from installed models (requires Ollama running). Use **Refresh models** to reload the list.
+- **Enable recommendations**: Toggle AI-generated question recommendations on/off. When disabled, no API calls are made for suggestions, improving performance and privacy.
+
+### Recommendation System
+
+The plugin includes an intelligent recommendation system that analyzes your active note and suggests relevant follow-up questions. Here's how it works:
+
+- **Smart Analysis**: When enabled, the system reads your current note content and generates 5 contextual questions
+- **Performance Optimized**: Recommendations are cached per file to avoid repeated API calls
+- **Privacy First**: Disabled by default to prevent unwanted API calls
+- **Real-time Control**: Toggle on/off in settings with immediate effect
+- **Context Aware**: Questions are generated based on the specific content of your active note
 
 ### Privacy
 
 - All requests are sent to your local Ollama server. The plugin includes the content of your active note as context to improve answers. Nothing is sent to external services unless your Ollama is configured to do so.
+- **Recommendations**: When the recommendation feature is enabled, your note content is sent to Ollama to generate contextual questions. When disabled, no content is sent for suggestions.
 
 ### Troubleshooting
 

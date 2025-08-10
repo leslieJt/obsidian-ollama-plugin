@@ -5,11 +5,13 @@ import { registerChatView } from './chatView';
 interface MyPluginSettings {
     defaultModel: string;
     chatHistory: Record<string, Array<{ type: 'request' | 'response'; content: string; model?: string }>>;
+    enableRecommendations: boolean;
 }
 
 const DEFAULT_SETTINGS: MyPluginSettings = {
     defaultModel: getDefaultModel(),
     chatHistory: {},
+    enableRecommendations: false,
 };
 
 
@@ -149,6 +151,31 @@ class SampleSettingTab extends PluginSettingTab {
 				console.warn('Failed to initialize model dropdown', e);
 			}
 		})();
+
+		new Setting(containerEl)
+			.setName('Enable recommendations')
+			.setDesc('Show AI-generated question recommendations based on the current file content')
+			.addToggle((toggle) =>
+				toggle.setValue(this.plugin.settings.enableRecommendations).onChange(async (value) => {
+					this.plugin.settings.enableRecommendations = value;
+					await this.plugin.saveSettings();
+					
+					// Refresh all chat views to reflect the setting change
+					const leaves = this.app.workspace.getLeavesOfType('ollama-chat-view');
+					for (const leaf of leaves) {
+						const view = leaf.view as any;
+						if (view && view.recommendationsPanel) {
+							if (value) {
+								// If enabled, refresh to show recommendations
+								void view.recommendationsPanel.refresh();
+							} else {
+								// If disabled, clear and hide recommendations
+								view.recommendationsPanel.clearRecommendations();
+							}
+						}
+					}
+				}),
+			);
 
 		new Setting(containerEl)
 			.setName('Refresh models')

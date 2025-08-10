@@ -139,8 +139,10 @@ export class OllamaChatView extends ItemView {
 
     this.renderMessages();
 
-    // Refresh recommendations panel
-    void this.recommendationsPanel.refresh();
+    // Refresh recommendations panel only if enabled
+    if (this.plugin.settings.enableRecommendations) {
+      void this.recommendationsPanel.refresh();
+    }
   }
 
   async onClose(): Promise<void> {
@@ -569,8 +571,8 @@ export class OllamaChatView extends ItemView {
       this.updateResetButtonText();
       this.updateHeaderText();
       
-      // Refresh recommendations panel for the new file
-      if (this.recommendationsPanel) {
+      // Refresh recommendations panel for the new file only if enabled
+      if (this.recommendationsPanel && this.plugin.settings.enableRecommendations) {
         console.log('[Ollama Chat] Refreshing recommendations panel');
         // Small delay to ensure file change is fully processed
         setTimeout(() => {
@@ -578,6 +580,8 @@ export class OllamaChatView extends ItemView {
             void this.recommendationsPanel.refresh();
           }
         }, 100);
+      } else if (this.recommendationsPanel) {
+        console.log('[Ollama Chat] Recommendations disabled, skipping refresh');
       } else {
         console.warn('[Ollama Chat] No recommendations panel available');
       }

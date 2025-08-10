@@ -24,11 +24,26 @@ export class RecommendationsPanel {
     this.rootEl = parentEl;
     this.onPrefill = callbacks.prefill;
     this.onAsk = callbacks.ask;
-    this.render();
+    
+    // Only render if recommendations are enabled
+    if (this.plugin.settings.enableRecommendations) {
+      this.render();
+    }
   }
 
   async refresh(force = false): Promise<void> {
     if (!this.rootEl) return;
+    
+    // Check if recommendations are enabled
+    if (!this.plugin.settings.enableRecommendations) {
+      console.log('[Recommendations] Recommendations disabled, skipping refresh');
+      this.questions = [];
+      this.errorMessage = null;
+      this.isLoading = false;
+      this.render();
+      return;
+    }
+    
     const activeFile = this.app.workspace.getActiveFile();
     if (!activeFile) {
       this.questions = [];
@@ -92,8 +107,24 @@ export class RecommendationsPanel {
     this.isLoading = false;
   }
 
+  clearRecommendations(): void {
+    try { this.abortController?.abort(); } catch { /* no-op */ }
+    this.questions = [];
+    this.lastProcessedFilePath = null;
+    this.errorMessage = null;
+    this.isLoading = false;
+    this.render();
+  }
+
   private render(): void {
     if (!this.rootEl) return;
+    
+    // If recommendations are disabled, hide the panel
+    if (!this.plugin.settings.enableRecommendations) {
+      this.rootEl.empty();
+      return;
+    }
+    
     const activeFile = this.app.workspace.getActiveFile();
     this.rootEl.empty();
     if (!activeFile) return;
